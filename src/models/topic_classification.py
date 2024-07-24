@@ -6,6 +6,7 @@ import torch
 import random
 import numpy as np
 import json
+from tqdm import tqdm
 
 
 def enforce_reproducibility(seed=1000):
@@ -22,10 +23,10 @@ def enforce_reproducibility(seed=1000):
     random.seed(seed)
     np.random.seed(seed)
 
-def data(dataset):
+def data(dataset, max_char_len=2000):
 
     for index, row in dataset.iterrows():
-        yield row['human_turn_1']
+        yield row['human_turn_1'][:max_char_len]
 
 
 if __name__ == '__main__':
@@ -49,11 +50,11 @@ if __name__ == '__main__':
     cache_dir = None
     if 'HF_MODEL_CACHE' in os.environ:
         cache_dir = os.environ['HF_MODEL_CACHE']
-    pipe = pipeline("text-classification", model="valpy/prompt-classification", model_kwargs={"cache_dir": cache_dir}, device='cuda')
+    pipe = pipeline("text-classification", model="valpy/prompt-classification", model_kwargs={"cache_dir": cache_dir}, device_map='cuda')
 
     topic_classes = []
 
-    for out, (i,row) in zip(pipe(data(dataset)), dataset.iterrows()):
+    for out, (i,row) in tqdm(zip(pipe(data(dataset), batch_size=1), dataset.iterrows()), total=len(dataset)):
         out['text'] = row['human_turn_1']
         out['conversation_hash'] = row['conversation_hash']
         topic_classes.append(out)
