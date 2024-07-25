@@ -78,8 +78,8 @@ if __name__ == '__main__':
     results = defaultdict(list)
     k = 0
     for index, row in data.iterrows():
-        for j, prompt in enumerate(prompts['Prompt Design']):
-            results[j].append(output_batch[k].outputs[0].text)
+        for j, prompt in prompts.iterrows():
+            results[prompt['Prompt ID']].append(output_batch[k].outputs[0].text)
             k += 1
 
     #results = {i: output.outputs[0].text for i, output in enumerate(output_batch)}
