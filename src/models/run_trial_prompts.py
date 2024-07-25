@@ -38,7 +38,9 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument("--seed", type=int, help="Random seed",
                         default=1000)
-
+    parser.add_argument("--num_gpus", type=int, help="Number of gpus for parallel inference",
+                        default=1)
+                        
     args = parser.parse_args()
 
     enforce_reproducibility(args.seed)
@@ -60,13 +62,13 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
 
     print("Loading LLM...")
-    llm = LLM(model=model_path, trust_remote_code=True, max_model_len=8192, download_dir=cache_dir, tensor_parallel_size=1)
-    sampling_params = SamplingParams(temperature=0.8, top_p=0.95, max_tokens=500)
+    llm = LLM(model=model_path, trust_remote_code=True, max_model_len=8192, download_dir=cache_dir, tensor_parallel_size=args.num_gpus)
+    sampling_params = SamplingParams(temperature=0.8, top_p=0.95, max_tokens=1024)
 
     batch = [
         tokenizer.apply_chat_template([
             {"role": "user", "content": prompt.replace('[TURN1]', row['human_turn_1']).replace('[TURN2]', row['ai_turn_2'])}
-        ], tokenize=False, add_special_tokens=False)
+        ], tokenize=False, add_special_tokens=False, add_generation_prompt=True)
         for index, row in data.iterrows()
         for j, prompt in enumerate(prompts['Prompt Design'])
     ]
