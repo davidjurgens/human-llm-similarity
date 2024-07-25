@@ -17,11 +17,6 @@ class LiwcDistExtractor:
     def clean_text(local_text):
         if type(local_text) is not str:
             text = ''
-        if local_text == '[deleted]' or local_text == '[removed]':
-            local_text = ''
-        deltabot_re = re.compile(r'^Confirmed: \d+ delta awarded to .*', re.DOTALL)
-        if deltabot_re.match(local_text):
-            text = ''
         local_text = local_text.lower()
         local_text = re.sub(r"what's", "what is ", local_text)
         local_text = re.sub(r"\'s", " ", local_text)
