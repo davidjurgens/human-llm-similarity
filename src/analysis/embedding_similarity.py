@@ -16,18 +16,38 @@ class EmbeddingSimilarity(object):
         self.device = device
         self.embedder = SentenceTransformer(model_name, device=self.device)
 
-    def get_embeddings(self, texts: List[str], batch_size: int = 32) -> np.ndarray:
-        return self.embedder.encode(texts, batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True)
+    def get_embeddings(self, texts: List[str], batch_size: int = 32) -> torch.Tensor:
+        return self.embedder.encode(texts, batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True, convert_to_tensor=True)
 
-    def average_cosine_similarity(self, embeddings_1: np.ndarray, embeddings_2: np.ndarray) -> float:
+    def average_cosine_similarity(self, embeddings_1: torch.Tensor, embeddings_2: torch.Tensor) -> float:
         """
         Measures the similarity by calculating the average cosine similarity between embeddings_1 and embeddings_2.
         """
-        similarities = util.dot_score(embeddings_1, embeddings_2)  # A matrix of similarities
-        similarities = similarities.cpu().numpy()  # Convert to numpy array
+        # Move tensors to the same device as the model
+        embeddings_1 = embeddings_1.to(self.device)
+        embeddings_2 = embeddings_2.to(self.device)
         
-        average_similarity = similarities.mean()  # Mean of all elements
-        return float(average_similarity)
+        similarities = util.dot_score(embeddings_1, embeddings_2)  # A matrix of similarities
+        
+        average_similarity = similarities.mean().item()  # Mean of all elements as a Python float
+        return average_similarity
+    
+    
+    def average_pairwise_cosine_similarity(self, embeddings_1: torch.Tensor, embeddings_2: torch.Tensor) -> float:
+        """
+        Measures the similarity by calculating the average cosine similarity between pairs of embeddings at corresponding indices (assume normalized).
+        """
+        if embeddings_1.shape[0] != embeddings_2.shape[0]:
+            raise ValueError("Both embedding arrays must have the same number of samples")
+        
+        # Compute dot product for corresponding pairs
+        similarities = torch.sum(embeddings_1 * embeddings_2, dim=1)
+        
+        # Compute mean and convert to Python float
+        average_similarity = similarities.mean().item()
+        
+        return average_similarity
+
 
 if __name__ == "__main__":
 
@@ -39,3 +59,4 @@ if __name__ == "__main__":
     embeddings_2 = embeddings.get_embeddings(llm_text_samples)
 
     print(f"Average cosine similarity: {embeddings.average_cosine_similarity(embeddings_1, embeddings_2)}")
+    print(f"Average pairwise cosine similarity: {embeddings.average_pairwise_cosine_similarity(embeddings_1, embeddings_2)}")
