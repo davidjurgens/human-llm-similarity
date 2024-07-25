@@ -26,11 +26,7 @@ class EmbeddingSimilarity(object):
         similarities = util.dot_score(embeddings_1, embeddings_2)  # A matrix of similarities
         similarities = similarities.cpu().numpy()  # Convert to numpy array
         
-        if embeddings_1 is embeddings_2:
-            # If same set, zero out the diagonal to avoid self-similarity
-            np.fill_diagonal(similarities, 0)
-        
-        average_similarity = similarities.mean()  # mean of all elements
+        average_similarity = similarities.mean()  # Mean of all elements
         return float(average_similarity)
 
 if __name__ == "__main__":
