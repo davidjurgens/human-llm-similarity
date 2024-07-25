@@ -7,6 +7,8 @@ import argparse
 import torch
 import random
 import numpy as np
+import pandas as pd
+from collections import defaultdict
 
 
 def enforce_reproducibility(seed=1000):
@@ -26,7 +28,9 @@ def enforce_reproducibility(seed=1000):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_path", type=str, help="Name of the file with the prompts",
+    parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data",
+                        required=True)
+    parser.add_argument("--prompt_path", type=str, help="Name of the file with the prompts",
                         required=True)
     parser.add_argument("--output_path", type=str, help="Name of the file to save the generated text",
                         required=True)
@@ -40,6 +44,7 @@ if __name__ == '__main__':
     enforce_reproducibility(args.seed)
 
     input_path = args.input_path #'./wildchat_subset_20.jsonl'
+    prompt_path = args.prompt_path
     model_path = args.model_path #'mistralai/Mistral-7B-Instruct-v0.3'
     output_path = args.output_path #'./wildchat_subset_Mistral-7B-v0.3.txt'
 
@@ -49,35 +54,8 @@ if __name__ == '__main__':
 
     print("Reading data...")
     data = pd.read_json(input_path, orient='records', lines=True)
+    prompts = pd.read_csv(prompt_path).dropna(subset=["Prompt Design"])
 
-    prompts = {
-        'p1': """You're an LLM who's trying to simulate a person who is interacting with an LLM. Respond as a regular person would in the following scenario.
-    
-    You have just said the following message:
-    [human_turn_1]
-    
-    The LLM has replied with this message:
-    [ai_turn_2]
-    
-    Print what you would respond with to the LLM as a regular person. If you would not respond to this message, print "[no response]":""",
-        'p2': """You are a human having a conversation with an LLM. Provide responses to the following conversation.
-    
-    Your previous prompt message:
-    [human_turn_1]
-    
-    The LLMs response message:
-    [ai_turn_2]
-    
-    Print your human response. If you would not respond to this message, respond with '[no response]'""",
-        'p3': """Imagine you are a human interacting with an LLM. You would like to further the conversation with follow up prompts. 
-    Your previous prompt message:
-    [human_turn_1]
-    
-    The LLMs response message:
-    [ai_turn_2]
-    
-    Print your human response. If you would not respond to this message, respond with '[no response]'"""
-    }
     print("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
 
@@ -87,14 +65,22 @@ if __name__ == '__main__':
 
     batch = [
         tokenizer.apply_chat_template([
-            {"role": "user", "content": prompt.replace('[human_turn_1]', row['human_turn_1']).replace('[ai_turn_2]', row['ai_turn_2'])}
+            {"role": "user", "content": prompt.replace('[TURN1]', row['human_turn_1']).replace('[TURN2]', row['ai_turn_2'])}
         ], tokenize=False, add_special_tokens=False)
         for index, row in data.iterrows()
-        for p_id, prompt in prompts.items()
+        for j, prompt in enumerate(prompts['Prompt Design'])
     ]
     print("Generating...")
     output_batch = llm.generate(batch, sampling_params)
-    results = {i: output.outputs[0].text for i, output in enumerate(output_batch)}
+
+    results = defaultdict(list)
+    k = 0
+    for index, row in data.iterrows():
+        for j, prompt in enumerate(prompts['Prompt Design']):
+            results[j].append(output_batch[k].outputs[0].text)
+            k += 1
+
+    #results = {i: output.outputs[0].text for i, output in enumerate(output_batch)}
 
     with open(output_path, 'wt') as output_file:
         output_file.write(json.dumps(results))
