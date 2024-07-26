@@ -40,9 +40,9 @@ class EmbeddingSimilarity(object):
         embeddings_1 = embeddings_1.to(self.device)
         embeddings_2 = embeddings_2.to(self.device)
 
-        similarities = util.dot_score(embeddings_1, embeddings_2)  # A matrix of similarities
+        similarities = torch.sum(embeddings_1 * embeddings_2, dim=1)  # A matrix of similarities
 
-        return similarities
+        return similarities.detach().cpu().numpy()
     
     
     def average_pairwise_cosine_similarity(self, embeddings_1: torch.Tensor, embeddings_2: torch.Tensor) -> float:

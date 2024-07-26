@@ -56,14 +56,14 @@ def sentiment(human, llm):
     human_sentiment = run_hf_model(human, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment')
     llm_sentiment = run_hf_model(llm, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment')
 
-    return jensenshannon(human_sentiment, llm_sentiment, axis=1)
+    return 1 - jensenshannon(human_sentiment, llm_sentiment, axis=1)
 
 
 def formality(human, llm):
     human_formality = run_hf_model(human, "s-nlp/mdeberta-base-formality-ranker", 'formality')
     llm_formality = run_hf_model(llm, "s-nlp/mdeberta-base-formality-ranker", 'formality')
 
-    return jensenshannon(human_formality, llm_formality, axis=1)
+    return 1 - jensenshannon(human_formality, llm_formality, axis=1)
 
 
 def politeness(human, llm):
@@ -71,7 +71,7 @@ def politeness(human, llm):
     llm_politeness = run_hf_model(llm, "Genius1237/xlm-roberta-large-tydip", 'politeness')#[politenessr.predict([text])[0] for text in llm]
 
     # Now all of the prompts
-    return jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
+    return 1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
 
 
 
