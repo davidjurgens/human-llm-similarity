@@ -44,7 +44,7 @@ def parse_tree(input_list):
         for x in consts:
             if x not in const_count.keys():
                 print("x: ", x)
-            const_count[x] += 1
+            const_count[x] += 1/len(consts)
         output_list.append(const_count)
     return output_list
 
@@ -57,7 +57,7 @@ def const_parse_metric(human_list, llm_list):
         human = list(human.values())
         llm = list(llm.values())
 
-        dist = jensenshannon(human, llm)
+        dist = 1-jensenshannon(human, llm)
         if math.isnan(dist):
             dist = 1
         pos_jsd.append(dist)
