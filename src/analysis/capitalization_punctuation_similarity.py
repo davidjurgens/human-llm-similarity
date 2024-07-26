@@ -3,8 +3,8 @@ import numpy as np
 import string
 from scipy.spatial.distance import jensenshannon
 
+
 def capitalization(df, human_col, ai_col):
-    
     def capital_rate(text):
         # count number of capital letters
         capital_count = sum(1 for char in text if char.isupper())
@@ -30,16 +30,13 @@ def capitalization(df, human_col, ai_col):
 
     # calculate similarity as 1 - absolute difference
     similarity = 1 - abs(standard_human - standard_ai)
-
-    df['capitalization_similarity'] = similarity
-    
-    return df
+    return similarity
 
 
 def punctuation(df, human_col, ai_col):
-    
+
     def punctuation_rate(text):
-    
+
         if len(text) < 1:
             return np.nan
 
@@ -66,7 +63,4 @@ def punctuation(df, human_col, ai_col):
     # calculate 1 - JSD for all examples
     for i in df.index:
         outputs.append(1 - jensenshannon(human_distributions[i], ai_distributions[i]))
-
-    df['punctuation_similarity'] = outputs
-    
-    return df
+    return outputs

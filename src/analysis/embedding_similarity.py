@@ -31,6 +31,18 @@ class EmbeddingSimilarity(object):
         
         average_similarity = similarities.mean().item()  # Mean of all elements as a Python float
         return average_similarity
+
+    def cosine_similarity(self, embeddings_1: torch.Tensor, embeddings_2: torch.Tensor) -> float:
+        """
+        Measures the similarity by calculating the average cosine similarity between embeddings_1 and embeddings_2.
+        """
+        # Move tensors to the same device as the model
+        embeddings_1 = embeddings_1.to(self.device)
+        embeddings_2 = embeddings_2.to(self.device)
+
+        similarities = util.dot_score(embeddings_1, embeddings_2)  # A matrix of similarities
+
+        return similarities
     
     
     def average_pairwise_cosine_similarity(self, embeddings_1: torch.Tensor, embeddings_2: torch.Tensor) -> float:

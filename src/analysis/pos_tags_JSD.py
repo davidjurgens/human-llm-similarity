@@ -55,6 +55,7 @@ def pos_tag_metric(human_list, llm_list):
 
     return pos_jsd
 
+
 if __name__ == "__main__":
     mod_dir = '/shared/0/projects/research-jam-summer-2024/data/english_only/prompting_results_clean/'
     all_files = os.listdir(mod_dir)

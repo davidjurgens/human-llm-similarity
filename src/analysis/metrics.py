@@ -1,7 +1,3 @@
-import pandas as pd
-from vllm import LLM, SamplingParams
-# import ujson as json
-from transformers import AutoTokenizer
 import os
 import argparse
 import torch
@@ -9,10 +5,13 @@ import random
 import numpy as np
 import pandas as pd
 from transformers import pipeline
-# from collections import defaultdict
 from tqdm import tqdm
 from scipy.spatial.distance import jensenshannon
-#import politenessr
+
+from analysis.pos_tags_JSD import pos_tag_metric
+from analysis.liwc_dist_extractor import LiwcDistExtractor
+from analysis.embedding_similarity import EmbeddingSimilarity
+from analysis.capitalization_punctuation_similarity import capitalization, punctuation
 
 
 def enforce_reproducibility(seed=1000):
@@ -54,7 +53,6 @@ def run_hf_model(data, model_name, column_name):
 
 
 def sentiment(human, llm):
-    # TODO: skeleton code for now
     human_sentiment = run_hf_model(human, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment')
     llm_sentiment = run_hf_model(llm, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment')
 
@@ -62,7 +60,6 @@ def sentiment(human, llm):
 
 
 def formality(human, llm):
-    # TODO: skeleton code for now
     human_formality = run_hf_model(human, "s-nlp/mdeberta-base-formality-ranker", 'formality')
     llm_formality = run_hf_model(llm, "s-nlp/mdeberta-base-formality-ranker", 'formality')
 
@@ -96,10 +93,6 @@ if __name__ == '__main__':
     output_path = args.output_path
     metrics = args.metrics.split(",")
 
-    # data = pd.read_json(input_path, orient='records', lines=True)
-    # mod_dir = '/shared/0/projects/research-jam-summer-2024/data/english_only/prompting_results_clean/'
-    # fname = os.listdir(mod_dir)[0]  # there are 4 files here
-
     # to get each dataframe
     data = pd.read_json(input_path, orient='records', lines=True)
     vals = [c for c in data.columns if c.startswith('Prompt_')]
@@ -122,5 +115,33 @@ if __name__ == '__main__':
     if 'all' in metrics or 'politeness' in metrics:
         politeness = politeness(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_politeness", politeness)
+
+    if 'all' in metrics or 'pos' in metrics:
+        pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_pos", pos)
+
+    if 'all' in metrics or 'liwc' in metrics:
+        liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
+        human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'])
+        llm_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['llm_turn_3'])
+        liwc = liwc_extractor_obj.liwc_similarity(human_liwc, llm_liwc, method="cosine")
+        data.insert(len(data.columns), "metric_liwc", liwc)
+
+    if 'all' in metrics or 'sbert' in metrics:
+        embeddings = EmbeddingSimilarity()
+        embeddings_1 = embeddings.get_embeddings(data['human_turn_3'])
+        embeddings_2 = embeddings.get_embeddings(data['llm_turn_3'])
+
+        similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
+        data.insert(len(data.columns), "metric_sbert", similarity)
+
+    if 'all' in metrics or 'capitalization' in metrics:
+        cap = capitalization(data, 'human_turn_3', 'llm_turn_3')
+        data.insert(len(data.columns), "metric_capitalization", cap)
+
+    if 'all' in metrics or 'punctuation' in metrics:
+        cap = punctuation(data, 'human_turn_3', 'llm_turn_3')
+        data.insert(len(data.columns), "metric_punctuation", cap)
+
 
     data.to_json(output_path, orient='records', lines=True)
