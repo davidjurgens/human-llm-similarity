@@ -89,6 +89,12 @@ def subjectivity(human, llm):
     
     return 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
 
+def topic(human, llm):
+    human_topic = run_hf_model(human, "valpy/prompt-classification", 'topic')
+    llm_topic = run_hf_model(llm, "valpy/prompt-classification", 'topic')
+
+    return 1 - jensenshannon(human_topic, llm_topic, axis=1)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -136,6 +142,10 @@ if __name__ == '__main__':
     if 'all' in metrics or 'toxicity' in metrics:
         toxicity = toxicity(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_toxicity", toxicity)
+
+    if 'all' in metrics or 'topic' in metrics:
+        topic = topic(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_topic", topic)
 
     if 'all' in metrics or 'pos' in metrics:
         pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
