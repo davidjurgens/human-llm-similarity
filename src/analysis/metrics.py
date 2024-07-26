@@ -12,6 +12,7 @@ from analysis.pos_tags_JSD import pos_tag_metric
 from analysis.liwc_dist_extractor import LiwcDistExtractor
 from analysis.embedding_similarity import EmbeddingSimilarity
 from analysis.capitalization_punctuation_similarity import capitalization, punctuation
+from analysis.syntactic_metrics import BasicSyntacticStatistics
 
 
 def enforce_reproducibility(seed=1000):
@@ -101,13 +102,15 @@ if __name__ == '__main__':
 
     # to get each dataframe
     data = pd.read_json(input_path, orient='records', lines=True)
-    vals = [c for c in data.columns if c.startswith('Prompt_')]
-    ids = [c for c in data.columns if c not in vals]
-    data = pd.melt(data, id_vars=ids, value_vars=vals, var_name='prompt', value_name='llm_turn_3')
-    data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
 
-    # cross tab on no response
-    pd.crosstab((data['human_turn_3'] == '[no response]'), (data['llm_turn_3'] == '[no response]'))
+    if 'prompt' not in data.columns:
+        vals = [c for c in data.columns if c.startswith('Prompt_')]
+        ids = [c for c in data.columns if c not in vals]
+        data = pd.melt(data, id_vars=ids, value_vars=vals, var_name='prompt', value_name='llm_turn_3')
+        data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
+
+        # cross tab on no response
+        pd.crosstab((data['human_turn_3'] == '[no response]'), (data['llm_turn_3'] == '[no response]'))
 
     # produce a score comparing human vs. llm text
     if 'all' in metrics or 'sentiment' in metrics:
@@ -153,5 +156,15 @@ if __name__ == '__main__':
         cap = punctuation(data, 'human_turn_3', 'llm_turn_3')
         data.insert(len(data.columns), "metric_punctuation", cap)
 
-
+    if 'all' in metrics or 'syntax' in metrics:
+        args.no_response_indicators = "[no response],[No Response],<CONV_STOP>,[SILENT]"
+        args.metrics = 'all'
+        bss = BasicSyntacticStatistics(args)
+        df_human_turn_counts = bss.get_counts(data['human_turn_3'])
+        df_human_turn_counts.rename(columns={col: f'human_turn_{col}' for col in df_human_turn_counts.columns},
+                                    inplace=True)
+        df_llm_turn_counts = bss.get_counts(data['llm_turn_3'])
+        df_llm_turn_counts.rename(columns={col: f'llm_turn_{col}' for col in df_llm_turn_counts.columns}, inplace=True)
+        df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
+        data = pd.concat([data, df_human_turn_counts, df_llm_turn_counts, df_metrics], axis=1)
     data.to_json(output_path, orient='records', lines=True)

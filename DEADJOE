@@ -1,0 +1,34 @@
+
+*** These modified files were found in JOE when it aborted on Fri Jul 26 06:15:42 2024
+*** JOE was aborted because the terminal closed
+
+*** File '/home/akananth/Misc/human-llm-similarity/.git/COMMIT_EDITMSG'
+run updated metrics
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# Committer: Aparna Ananthasubramaniam <akananth@curry.si.umich.edu>
+#
+# On branch main
+# Your branch is up to date with 'origin/main'.
+#
+# Changes to be committed:
+#	new file:   src/analysis/.ipynb_checkpoints/Plot Prompt Ranks-checkpoint.ipynb
+#	new file:   src/analysis/Plot Prompt Ranks.ipynb
+#	modified:   src/analysis/metrics.py
+#	modified:   src/data/.ipynb_checkpoints/Clean Pilot Prompts-checkpoint.ipynb
+#	new file:   src/data/.ipynb_checkpoints/Untitled-checkpoint.ipynb
+#	modified:   src/data/Clean Pilot Prompts.ipynb
+#	new file:   src/data/Untitled.ipynb
+#
+
+*** File '(Unnamed)'
+/home/akananth/Misc/human-llm-similarity/.git/MERGE_MSG
+/home/akananth/Misc/human-llm-similarity/.git/COMMIT_EDITMSG
+
+*** File '* Startup Log *'
+Processing '/etc/joe/editorrc'...
+Processing '/etc/joe/ftyperc'...
+Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/editorrc
