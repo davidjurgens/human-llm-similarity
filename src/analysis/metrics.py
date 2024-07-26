@@ -13,6 +13,7 @@ from analysis.liwc_dist_extractor import LiwcDistExtractor
 from analysis.embedding_similarity import EmbeddingSimilarity
 from analysis.capitalization_punctuation_similarity import capitalization, punctuation
 from analysis.syntactic_metrics import BasicSyntacticStatistics
+from analysis.subjectivity import SubjectivityAnalyzer
 
 
 def enforce_reproducibility(seed=1000):
@@ -82,6 +83,13 @@ def toxicity(human, llm):
     return 1 - jensenshannon(human_toxicity, llm_toxicity, axis=1)
 
 
+def subjectivity(human, llm):
+    human_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(human)
+    llm_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(llm)
+    
+    return 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data",
@@ -132,6 +140,10 @@ if __name__ == '__main__':
     if 'all' in metrics or 'pos' in metrics:
         pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_pos", pos)
+
+    if 'all' in metrics or 'subjectivity' in metrics:
+        subjectivity = subjectivity(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_subjectivity", subjectivity)
 
     if 'all' in metrics or 'liwc' in metrics:
         liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)

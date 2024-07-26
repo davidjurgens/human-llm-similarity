@@ -16,11 +16,12 @@ class SubjectivityAnalyzer:
         """
         Get the subjectivity scores of a list of texts.
         """
-        return [self._get_subjectivity(text) for text in texts]
-    
+        scores = [self._get_subjectivity(text) for text in texts]
+        return [max(score, 1e-10) for score in scores]  # Ensure no zero values
+
 
 if __name__ == "__main__":
     analyzer = SubjectivityAnalyzer()
-    texts = ["I love programming in Python.", "I hate programming in Python."]
+    texts = ["I love programming in C++.", "I hate programming in C++."]
     scores = analyzer.get_subjectivity_scores(texts)
     print(scores)
