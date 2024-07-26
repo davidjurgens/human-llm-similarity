@@ -14,6 +14,8 @@ from analysis.embedding_similarity import EmbeddingSimilarity
 from analysis.capitalization_punctuation_similarity import capitalization, punctuation
 from analysis.syntactic_metrics import BasicSyntacticStatistics
 from analysis.subjectivity import SubjectivityAnalyzer
+from analysis.factuality_eval import get_align_score
+from analysis.constituency_parse import const_parse_metric
 
 
 def enforce_reproducibility(seed=1000):
@@ -177,6 +179,14 @@ if __name__ == '__main__':
     if 'all' in metrics or 'punctuation' in metrics:
         cap = punctuation(data, 'human_turn_3', 'llm_turn_3')
         data.insert(len(data.columns), "metric_punctuation", cap)
+
+    if 'all' in metrics or 'factuality' in metrics:
+        fact = get_align_score(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_factuality", fact)
+
+    if 'all' in metrics or 'constituency' in metrics:
+        constituency = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_constituency_parse", constituency)
 
     if 'all' in metrics or 'syntax' in metrics:
         args.no_response_indicators = "[no response],[No Response],<CONV_STOP>,[SILENT]"
