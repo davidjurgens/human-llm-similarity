@@ -22,7 +22,8 @@ class BasicSyntacticStatistics:
             self.metric_list = [
                 'no_response_exact', 'no_response_include', 'word_count', 'char_count',
                 'upper_count', 'lower_count', 'space_count', 'space_count', 'alnum_count', 'punct_count',
-                'typo_count', 'grammar_error_count', 'bleu', 'rogue', 'luar_similarity'
+                # 'typo_count', 'grammar_error_count', 'bleu', 'rogue', 'luar_similarity'
+                'typo_count', 'bleu', 'rogue', 'luar_similarity'
             ]
         else:
             self.metric_list = args.metrics.split(',')
@@ -165,7 +166,8 @@ class BasicSyntacticStatistics:
             df_output['bleu'] = df_input1.combine(df_input2, self.get_bleu_score)
             
         if 'rogue' in self.metric_list:
-            df_temp = pd.DataFrame(list(df_input1.combine(df_input2, self.get_rogue_score)))
+            df_temp = df_input1.combine(df_input2, self.get_rogue_score)
+            df_temp = pd.DataFrame(list(df_temp), index=df_temp.index)
 
             for col in df_temp.columns:
                 df_output[col] = df_temp[col]
