@@ -1,10 +1,11 @@
+import pdb
 import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from typing import List
-from sklearn.decomposition import NMF, LatentDirichletAllocation, MiniBatchNMF
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.decomposition import NMF, LatentDirichletAllocation
+from sklearn.feature_extraction.text import CountVectorizer
 
 
 def plot_top_words(model,
@@ -30,7 +31,23 @@ def plot_top_words(model,
 
     plt.subplots_adjust(top=0.90, bottom=0.05, wspace=0.90, hspace=0.3)
     plt.show()
-    plt.savefig("/shared/0/projects/research-jam-summer-2024/data/topic_data/test_topics.pdf", dpi=150)
+    plt.savefig("/shared/0/projects/research-jam-summer-2024/data/topic_data/100k-with-topics.pdf", dpi=150)
+
+
+def extract_topics(model,
+                   feature_names:List[str], 
+                   n_top_words:int):
+    """Plots the topic clusters with each cluster 20 topics.
+    """
+    topic_features = []
+    topic_weights = []
+    for _, topic in enumerate(model.components_):
+        top_features_ind = topic.argsort()[-n_top_words:]
+        top_features = feature_names[top_features_ind]
+        weights = topic[top_features_ind]
+        topic_features.append(top_features)
+        topic_weights.append(weights)
+    return topic_features, topic_weights
 
 
 def load_tf_features(n_features: int, 
@@ -73,13 +90,14 @@ def main(args):
     lda = lda_model(args.n_components)
     lda.fit(tf)
 
+    topic_features, topic_weights = extract_topics(lda, tf_feature_names, args.n_top_words)
     plot_top_words(lda, tf_feature_names, args.n_top_words, "Topics in LDA model")
 
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_path", type=str, help="Name of the file with the prompts", default="/shared/0/projects/research-jam-summer-2024/data/topic_data/1k-with-topics.jsonl")
+    parser.add_argument("--input_path", type=str, help="Name of the file with the prompts", default="/shared/0/projects/research-jam-summer-2024/data/topic_data/100k-with-topics.jsonl")
     parser.add_argument("--output_path", type=str, help="Name of the file to save the generated text")
     parser.add_argument("--n_samples", type=int, help="number of samples",default=2000)
     parser.add_argument("--n_features", type=int, help="number of feature",default=1000)

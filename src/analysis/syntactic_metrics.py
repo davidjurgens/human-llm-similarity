@@ -8,9 +8,10 @@ from argparse import Namespace
 from pandas import DataFrame, Series
 
 import string
+import ujson as json
 from spellchecker import SpellChecker
-import language_tool_python
-import evaluate
+import nltk
+from rouge_metric import PyRouge
 import torch
 import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
@@ -21,7 +22,7 @@ class BasicSyntacticStatistics:
         if args.metrics == 'all':
             self.metric_list = [
                 'no_response_exact', 'no_response_include', 'word_count', 'char_count',
-                'upper_count', 'lower_count', 'space_count', 'space_count', 'alnum_count', 'punct_count',
+                'upper_count', 'lower_count', 'space_count', 'space_count', 'alnum_count', 'punct_count', 'contract_count',
                 # 'typo_count', 'grammar_error_count', 'bleu', 'rouge', 'luar_similarity'
                 'typo_count', 'bleu', 'rouge', 'luar_similarity'
             ]
@@ -29,16 +30,21 @@ class BasicSyntacticStatistics:
             self.metric_list = args.metrics.split(',')
         self.no_response_indicator_list = args.no_response_indicators.split(',')
 
+        if 'contract_count' in self.metric_list:
+            with open(args.contraction_file_path) as input_file:
+                self.contraction_dict = json.load(input_file)
         if 'typo_count' in self.metric_list:
             self.spell_checker = SpellChecker()
         if 'grammar_error_count' in self.metric_list:
             self.grammar_checker = language_tool_python.LanguageTool('en-US')
-        if 'bleu' in self.metric_list:
-            self.bleu_evaluator = evaluate.load('bleu')
         if 'rouge' in self.metric_list:
-            self.rouge_evaluator = evaluate.load('rouge')
+            self.rouge_evaluator = PyRouge(
+                rouge_n=(1, 2, 4), rouge_l=True, rouge_w=True,
+                rouge_w_weight=1.2, rouge_s=True, rouge_su=True, skip_gap=4
+            )
         if 'luar_similarity' in self.metric_list:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            torch.cuda.set_device(2)
             self.luar_tokenizer = AutoTokenizer.from_pretrained('rrivera1849/LUAR-CRUD')
             self.luar_embedder = AutoModel.from_pretrained('rrivera1849/LUAR-CRUD', trust_remote_code=True).to(self.device)
             
@@ -84,6 +90,10 @@ class BasicSyntacticStatistics:
     @staticmethod
     def get_punctuation_count(text: str) -> int:
         return sum(1 for char in text if string.punctuation.find(char) >= 0)
+
+    @staticmethod
+    def get_contraction_count(text: str) -> int:
+        return sum(1 for word in text.lower().split() if word in self.contraction_dict)
     
     def get_typo_count(self, text: str) -> int:
         misspelled = self.spell_checker.unknown(text.split())
@@ -97,8 +107,8 @@ class BasicSyntacticStatistics:
         if len(text_pred) == 0 or len(text_ref) == 0:
             return 0
         try:
-            results = self.bleu_evaluator.compute(predictions=[text_pred], references=[text_ref])
-            return results['bleu']
+            results = nltk.translate.bleu_score.sentence_bleu([text_ref.split()], text_pred.split())
+            return results
         except:
             return 0
 
@@ -106,28 +116,55 @@ class BasicSyntacticStatistics:
         if len(text_pred) == 0 or len(text_ref) == 0:
             return 0
         try:
-            results = self.rouge_evaluator.compute(predictions=[text_pred], references=[text_ref])
-            return results
+            results = self.rouge_evaluator.evaluate(predictions=[text_pred], references=[[text_ref]])
+            return {key: value['f'] for key, value in results.items()}
         except:
             return 0
 
-    def get_luar_similarity(self, text_pred: str, text_ref: str) -> float:
-        if len(text_pred) == 0 or len(text_ref) == 0:
-            return 0
-        texts = [text_pred, text_ref]
+    # def get_luar_similarity(self, text_pred: str, text_ref: str) -> float:
+    #     if len(text_pred) == 0 or len(text_ref) == 0:
+    #         return 0
+    #     texts = [text_pred, text_ref]
 
-        try:
-            tokenized_texts = self.luar_tokenizer(texts, max_length=512, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
-            tokenized_texts['input_ids'] = tokenized_texts['input_ids'].reshape(2, 1, -1)
-            tokenized_texts['attention_mask'] = tokenized_texts['attention_mask'].reshape(2, 1, -1)
+    #     try:
+    #         tokenized_texts = self.luar_tokenizer(texts, max_length=512, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
+    #         tokenized_texts['input_ids'] = tokenized_texts['input_ids'].reshape(2, 1, -1)
+    #         tokenized_texts['attention_mask'] = tokenized_texts['attention_mask'].reshape(2, 1, -1)
     
-            out = self.luar_embedder(**tokenized_texts)
-            out = out.detach().cpu()
+    #         out = self.luar_embedder(**tokenized_texts)
+    #         out = out.detach().cpu()
             
-            return F.cosine_similarity(out[0], out[1], dim=0).item()
-        except:
-            return 0
+    #         return F.cosine_similarity(out[0], out[1], dim=0).item()
+    #     except:
+    #         return 0
 
+    def get_luar_embeddings(self, text_series: Series) -> torch.Tensor:
+        batch_size = 32
+        num_batches = (len(text_series) - 1) // batch_size + 1
+
+        embeddings = []
+        for i in range(num_batches):
+            texts = list(text_series.iloc[i*batch_size: (i+1)*batch_size])
+            actual_batch_size = len(texts)
+            tokenized_texts = self.luar_tokenizer(texts, max_length=512, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
+            tokenized_texts['input_ids'] = tokenized_texts['input_ids'].reshape(actual_batch_size, 1, -1)
+            tokenized_texts['attention_mask'] = tokenized_texts['attention_mask'].reshape(actual_batch_size, 1, -1)
+
+            out = self.luar_embedder(**tokenized_texts)
+            embeddings.append(out.detach().cpu())
+        return torch.concatenate(embeddings, dim=0)
+
+    def get_cosine_similarity(self, embeddings_1: torch.Tensor, embeddings_2: torch.Tensor) -> torch.Tensor:
+        embeddings_1 = embeddings_1.to(self.device)
+        embeddings_2 = embeddings_2.to(self.device)
+
+        embeddings_1 = embeddings_1 / embeddings_1.norm(dim=1, keepdim=True)
+        embeddings_2 = embeddings_2 / embeddings_2.norm(dim=1, keepdim=True)
+
+        similarities = torch.sum(embeddings_1 * embeddings_2, dim=1)  # A matrix of similarities
+
+        return similarities.detach().cpu()
+        
     def get_counts(self, df_input: Series):
         df_output = {}
         
@@ -161,6 +198,9 @@ class BasicSyntacticStatistics:
         if 'punct_count' in self.metric_list:
             df_output['punct_count'] = df_input.transform(BasicSyntacticStatistics.get_punctuation_count)
             
+        if 'contract_count' in self.metric_list:
+            df_output['contract_count'] = df_input.transform(BasicSyntacticStatistics.get_contraction_count)
+            
         if 'typo_count' in self.metric_list:
             df_output['typo_count'] = df_input.transform(self.get_typo_count)
             
@@ -189,7 +229,19 @@ class BasicSyntacticStatistics:
 
         if 'luar_similarity' in self.metric_list:
             start = time.time()
-            df_output['luar_similarity'] = df_input1.combine(df_input2, self.get_luar_similarity)
+            # df_output['luar_similarity'] = df_input1.combine(df_input2, self.get_luar_similarity)
+            embeddings_1 = self.get_luar_embeddings(df_input1)
+            end = time.time()
+            print(f"Completed embeddings_1 in {end-start}s")
+            
+            start = time.time()
+            embeddings_2 = self.get_luar_embeddings(df_input2)
+            end = time.time()
+            print(f"Completed embeddings_2 in {end-start}s")
+            
+            start = time.time()
+            # df_output['luar_similarity'] = pd.Series(self.get_cosine_similarity(embeddings_1, embeddings_2), index=df_input1)
+            print(pd.Series(self.get_cosine_similarity(embeddings_1, embeddings_2), index=df_input1.index))
             end = time.time()
             print(f"Completed luar_similarity in {end-start}s")
             
@@ -270,6 +322,12 @@ if __name__ == '__main__':
         '--output_folder',
         help='Path to output computed metrics.',
         default="/home/kimjhj/projects/research-jam-summer-2024/human-llm-similarity/metrics/english_only/prompting_results_clean/",
+        type=str
+    )
+    parser.add_argument(
+        '--contraction_file_path',
+        help='Path to the file with the list of contractions.',
+        default="/home/kimjhj/projects/research-jam-summer-2024/human-llm-similarity/src/analysis/punctuation_list.json",
         type=str
     )
     parser.add_argument(
