@@ -18,7 +18,7 @@ class LiwcDistExtractor:
         self.normalize = normalize
 
         # reading the LIWC dictionary
-        liwc_dict_path = open('LIWC_Features.txt')
+        liwc_dict_path = open('/shared/0/projects/research-jam-summer-2024/data/LIWC_Features.txt')
         lines = liwc_dict_path.readlines()
         liwc_dict_path.close()
 
