@@ -22,8 +22,8 @@ class BasicSyntacticStatistics:
             self.metric_list = [
                 'no_response_exact', 'no_response_include', 'word_count', 'char_count',
                 'upper_count', 'lower_count', 'space_count', 'space_count', 'alnum_count', 'punct_count',
-                # 'typo_count', 'grammar_error_count', 'bleu', 'rogue', 'luar_similarity'
-                'typo_count', 'bleu', 'rogue', 'luar_similarity'
+                # 'typo_count', 'grammar_error_count', 'bleu', 'rouge', 'luar_similarity'
+                'typo_count', 'bleu', 'rouge', 'luar_similarity'
             ]
         else:
             self.metric_list = args.metrics.split(',')
@@ -35,7 +35,7 @@ class BasicSyntacticStatistics:
             self.grammar_checker = language_tool_python.LanguageTool('en-US')
         if 'bleu' in self.metric_list:
             self.bleu_evaluator = evaluate.load('bleu')
-        if 'rogue' in self.metric_list:
+        if 'rouge' in self.metric_list:
             self.rouge_evaluator = evaluate.load('rouge')
         if 'luar_similarity' in self.metric_list:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -102,7 +102,7 @@ class BasicSyntacticStatistics:
         except:
             return 0
 
-    def get_rogue_score(self, text_pred: str, text_ref: str) -> float:
+    def get_rouge_score(self, text_pred: str, text_ref: str) -> float:
         if len(text_pred) == 0 or len(text_ref) == 0:
             return 0
         try:
@@ -172,17 +172,26 @@ class BasicSyntacticStatistics:
     def get_metrics(self, df_input1: Series, df_input2: Series):
         df_output = {}
         if 'bleu' in self.metric_list:
+            start = time.time()
             df_output['bleu'] = df_input1.combine(df_input2, self.get_bleu_score)
+            end = time.time()
+            print(f"Completed bleu in {end-start}s")
             
-        if 'rogue' in self.metric_list:
-            df_temp = df_input1.combine(df_input2, self.get_rogue_score)
+        if 'rouge' in self.metric_list:
+            start = time.time()
+            df_temp = df_input1.combine(df_input2, self.get_rouge_score)
             df_temp = pd.DataFrame(list(df_temp), index=df_temp.index)
 
             for col in df_temp.columns:
                 df_output[col] = df_temp[col]
+            end = time.time()
+            print(f"Completed rouge in {end-start}s")
 
         if 'luar_similarity' in self.metric_list:
+            start = time.time()
             df_output['luar_similarity'] = df_input1.combine(df_input2, self.get_luar_similarity)
+            end = time.time()
+            print(f"Completed luar_similarity in {end-start}s")
             
         return pd.DataFrame(df_output)
     
