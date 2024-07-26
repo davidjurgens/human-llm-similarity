@@ -122,6 +122,7 @@ if __name__ == '__main__':
         human_end = is_no_response(data['human_turn_3']) 
         llm_end = is_no_response(data['llm_turn_3'])
         data.insert(len(data.columns), "human_end", human_end)
+        data.insert(len(data.columns), "llm_end", llm_end)
         data.insert(len(data.columns), "metric_end", (human_end == llm_end).astype(int))
 
     #subset to cases where llm and human produce a response for the remaining metrics
@@ -207,9 +208,9 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'liwc' in metrics:
         liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
-        human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'])[0]
-        llm_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['llm_turn_3'])[0]
-        liwc = liwc_extractor_obj.liwc_similarity(human_liwc, llm_liwc, method="jsd")
+        human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'].to_list())
+        llm_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['llm_turn_3'].to_list())
+        liwc = [liwc_extractor_obj.liwc_similarity(human, llm, method="jsd") for human, llm in zip(human_liwc, llm_liwc)]
         data.insert(len(data.columns), "metric_liwc", liwc)
 
     data_full.to_json(re.sub('.json','_end.json',output_path), orient='records', lines=True)
