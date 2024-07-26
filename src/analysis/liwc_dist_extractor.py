@@ -17,25 +17,24 @@ class LiwcDistExtractor:
         self.agg_results = agg_results
         self.normalize = normalize
 
-    @staticmethod
-    def clean_text(local_text):
-        if type(local_text) is not str:
-            text = ''
-        local_text = local_text.lower()
-        local_text = re.sub(r"what's", "what is ", local_text)
-        local_text = re.sub(r"\'s", " ", local_text)
-        local_text = re.sub(r"\'ve", " have ", local_text)
-        local_text = re.sub(r"can't", "can not ", local_text)
-        local_text = re.sub(r"n't", " not ", local_text)
-        local_text = re.sub(r"i'm", "i am ", local_text)
-        local_text = re.sub(r"\'re", " are ", local_text)
-        local_text = re.sub(r"\'d", " would ", local_text)
-        local_text = re.sub(r"\'ll", " will ", local_text)
-        local_text = re.sub(r"\'scuse", " excuse ", local_text)
-        local_text = re.sub('\W', ' ', local_text)
-        local_text = re.sub('\s+', ' ', local_text)
-        local_text = local_text.strip(' ')
-        return local_text
+        # reading the LIWC dictionary
+        liwc_dict_path = open('LIWC_Features.txt')
+        lines = liwc_dict_path.readlines()
+        liwc_dict_path.close()
+
+        liwc_cat_dict = {}  # {cat: (w1,w2,w3,...)}
+        for line in lines[1:]:  # first line is a comment about the use of *
+            tokens = line.strip().lower().split(', ')
+            liwc_cat_dict[tokens[0]] = tokens[1:]
+
+        # creating a LIWC regex dict
+        liwc_regex_dict = {}
+        for k, v in liwc_cat_dict.items():
+            s = '|'.join(v)
+            s = re.sub(r'\*', r'\\w*', s)
+            liwc_regex_dict[k] = re.compile(r'\b(' + s + r')\b')
+
+        self.liwc_regex_dict = liwc_regex_dict
 
     def extract_liwc_occurrences(self, text_list):
         """
@@ -56,33 +55,16 @@ class LiwcDistExtractor:
         >>> results = extract_liwc_occurrences(text_to_analyse, agg_results=False, normalize=True)
         >>> print(results)
         """
-        # reading the LIWC dictionary
-        liwc_dict_path = open('LIWC_Features.txt')
-        lines = liwc_dict_path.readlines()
-        liwc_dict_path.close()
 
-        liwc_cat_dict = {}  # {cat: (w1,w2,w3,...)}
-        for line in lines[1:]:  # first line is a comment about the use of *
-            tokens = line.strip().lower().split(', ')
-            liwc_cat_dict[tokens[0]] = tokens[1:]
-
-        # creating a LIWC regex dict
-        liwc_regex_dict = {}
-        for k, v in liwc_cat_dict.items():
-            s = '|'.join(v)
-            s = re.sub(r'\*', r'\\w*', s)
-            liwc_regex_dict[k] = re.compile(r'\b(' + s + r')\b')
-
-        # handling the input text_list (text_list is a list of sentences
-        cleaned_corpus = [self.clean_text(local_text=t) for t in text_list]
+        cleaned_corpus = text_list#[self.clean_text(local_text=t) for t in text_list]
 
         # creating a counter of the LIWC categories to the given list of texts
         liwc_categ_in_text = list()
         for cur_cc in cleaned_corpus:
             cur_liwc_distrib = dict(Counter({cat: len(regex.findall(cur_cc))
-                                             for cat, regex in liwc_regex_dict.items()}))
+                                             for cat, regex in self.liwc_regex_dict.items()}))
             # sort the liwc categories (keys)
-            cur_liwc_distrib = {k : cur_liwc_distrib[k] for k in sorted(cur_liwc_distrib)}# if regex.findall(cur_cc)})))
+            cur_liwc_distrib = {k: cur_liwc_distrib[k] for k in sorted(cur_liwc_distrib)}# if regex.findall(cur_cc)})))
             liwc_categ_in_text.append(cur_liwc_distrib)
         if self.agg_results:
             tot_words = 0
@@ -105,6 +87,7 @@ class LiwcDistExtractor:
             # if no need to normalize
             else:
                 return liwc_categ_in_text
+
     @staticmethod
     def liwc_similarity(text1_liwc_dict, text2_liwc_dict, method='jsd'):
         if text1_liwc_dict.keys() != text2_liwc_dict.keys():
@@ -119,9 +102,10 @@ class LiwcDistExtractor:
             raise IOError("Invalid method value for the similarity function")
         return dicts_similarity
 
+
 if __name__ == '__main__':
     mod_dir = '/shared/0/projects/research-jam-summer-2024/data/english_only/prompting_results_clean/'
-    fname = os.listdir(mod_dir)[0] #there are 4 files here
+    fname = os.listdir(mod_dir)[2] #there are 4 files here
 
     # to get each dataframe
     data = pd.read_json(mod_dir + fname, orient='records', lines=True)
@@ -134,15 +118,12 @@ if __name__ == '__main__':
     pd.crosstab((data['human_turn_3'] == '[no response]'), (data['llm_turn_3'] == '[no response]'))
 
     # produce a score comparing human vs. llm text
+    #data = data[0:100]
     liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
-    liwc_similarities = list()
-    for row_idx, row_content in tqdm(data.iterrows()):
-        human_liwc_distrib = liwc_extractor_obj.extract_liwc_occurrences([row_content['human_turn_3']])[0]
-        llm_liwc_distrib = liwc_extractor_obj.extract_liwc_occurrences([row_content['llm_turn_3']])[0]
-        similarity = liwc_extractor_obj.liwc_similarity(human_liwc_distrib, llm_liwc_distrib, method="jsd")
-        liwc_similarities.append(similarity)
+    human_liwc_distrib = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'].to_list())
+    llm_liwc_distrib = liwc_extractor_obj.extract_liwc_occurrences(data['llm_turn_3'].to_list())
+    liwc_similarities = [liwc_extractor_obj.liwc_similarity(human, llm, method="jsd") for human, llm in tqdm(zip(human_liwc_distrib, llm_liwc_distrib))]
     data['liwc_similarities'] = liwc_similarities
     print(f"Mean and STD similarity: {np.nanmean(liwc_similarities)}, {np.nanstd(liwc_similarities)}")
     # now results can be saved using data.to_csv()
-
 
