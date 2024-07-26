@@ -8,12 +8,14 @@ from transformers import pipeline
 from tqdm import tqdm
 from scipy.spatial.distance import jensenshannon
 
-# from analysis.pos_tags_JSD import pos_tag_metric
-# from analysis.liwc_dist_extractor import LiwcDistExtractor
-# from analysis.embedding_similarity import EmbeddingSimilarity
-# from analysis.capitalization_punctuation_similarity import capitalization, punctuation
-# from analysis.syntactic_metrics import BasicSyntacticStatistics
-# from analysis.subjectivity import SubjectivityAnalyzer
+from analysis.pos_tags_JSD import pos_tag_metric
+from analysis.liwc_dist_extractor import LiwcDistExtractor
+from analysis.embedding_similarity import EmbeddingSimilarity
+from analysis.capitalization_punctuation_similarity import capitalization, punctuation
+from analysis.syntactic_metrics import BasicSyntacticStatistics
+from analysis.subjectivity import SubjectivityAnalyzer
+from analysis.factuality_eval import get_align_score
+from analysis.constituency_parse import const_parse_metric
 
 
 def enforce_reproducibility(seed=1000):
@@ -131,6 +133,12 @@ def subjectivity(human, llm):
     
     return 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
 
+def topic(human, llm):
+    human_topic = run_hf_model(human, "valpy/prompt-classification", 'topic')
+    llm_topic = run_hf_model(llm, "valpy/prompt-classification", 'topic')
+
+    return 1 - jensenshannon(human_topic, llm_topic, axis=1)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -182,6 +190,10 @@ if __name__ == '__main__':
         toxicity = toxicity(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_toxicity", toxicity)
 
+    if 'all' in metrics or 'topic' in metrics:
+        topic = topic(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_topic", topic)
+
     if 'all' in metrics or 'pos' in metrics:
         pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_pos", pos)
@@ -212,6 +224,14 @@ if __name__ == '__main__':
     if 'all' in metrics or 'punctuation' in metrics:
         cap = punctuation(data, 'human_turn_3', 'llm_turn_3')
         data.insert(len(data.columns), "metric_punctuation", cap)
+
+    if 'all' in metrics or 'factuality' in metrics:
+        fact = get_align_score(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_factuality", fact)
+
+    if 'all' in metrics or 'constituency' in metrics:
+        constituency = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_constituency_parse", constituency)
 
     if 'all' in metrics or 'syntax' in metrics:
         args.no_response_indicators = "[no response],[No Response],<CONV_STOP>,[SILENT]"
