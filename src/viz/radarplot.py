@@ -11,20 +11,21 @@ def radar_plot(categories, datasets, errors=None, title="Awesome Metrics"):
     fig, ax = plt.subplots(figsize=(14, 10), subplot_kw=dict(polar=True))
 
     # Color palette - vibrant colors with good contrast
-    colors = ['#FF6B6B', '#4ECDC4', '#FFA500', '#9B59B6', '#3498DB']
+    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8']
 
     # Plot each dataset
     for i, (label, values) in enumerate(datasets.items()):
         values += values[:1]  # Repeat the first value to close the polygon
-        ax.plot(angles, values, 'o-', linewidth=2, color=colors[i % len(colors)], label=label)
-        ax.fill(angles, values, alpha=0.15, color=colors[i % len(colors)])
+        ax.plot(angles, values, 'o-', linewidth=3, color=colors[i % len(colors)], label=label)
+        
+        ax.fill(angles, values, alpha=0.08, color=colors[i % len(colors)])
 
         # Add error bars if provided
         if errors and label in errors:
             err = errors[label] + errors[label][:1]
             for j in range(len(values)):
                 ax.errorbar(angles[j], values[j], yerr=err[j], fmt='none', 
-                            ecolor=colors[i % len(colors)], capsize=4, capthick=1.5, elinewidth=1.5, alpha=0.7)
+                            ecolor=colors[i % len(colors)], capsize=4, capthick=2.5, elinewidth=2.5, alpha=0.8)
 
     # Set category labels
     ax.set_xticks(angles[:-1])
@@ -33,22 +34,22 @@ def radar_plot(categories, datasets, errors=None, title="Awesome Metrics"):
     # Set y-axis labels
     ax.set_rlabel_position(0)
     ax.set_rticks([0.2, 0.4, 0.6, 0.8, 1.0])
-    ax.set_yticklabels(["0.2", "0.4", "0.6", "0.8", "1.0"], color="#333333", fontsize=12)
+    y_labels = ax.set_yticklabels(["0.2", "0.4", "0.6", "0.8", "1.0"], color="#333333", fontsize=15)
     ax.set_ylim(0, 1.1)
 
     # Add subtle gridlines with increased opacity and thickness
-    ax.grid(color='#666666', linestyle='--', linewidth=1, alpha=0.5)
+    ax.grid(color='#C0C0C0', linestyle='--', linewidth=1, alpha=1)
 
     # Remove spines
     ax.spines['polar'].set_visible(False)
 
     # Add a legend with a semi-transparent background
-    legend = ax.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1), fontsize=14)
-    legend.get_frame().set_alpha(0.7)
+    legend = ax.legend(loc='upper right', bbox_to_anchor=(1.1, 1.0), fontsize=14)
+    legend.get_frame().set_alpha(0.0)
     legend.get_frame().set_facecolor('#F0F0F0')
 
     # Set background color for the plot area
-    ax.set_facecolor('#FAFAFA')
+    ax.set_facecolor('#F7FBFF')  # Very light blue color
 
     # Add title with adjusted position
     plt.title(title, fontsize=22, fontweight='bold', pad=30, color='#333333')
@@ -59,16 +60,16 @@ def radar_plot(categories, datasets, errors=None, title="Awesome Metrics"):
     return fig, ax
 
 # Sample data
-categories = ['Lexical', 'Syntax', 'Semantic', 'Style', 'Pragmatics']
+categories = ['Lexical', 'Syntax', 'Semantic', 'Style', 'Pragmatics', 'End']
 datasets = {
-    'Llama-3.1 8B': [0.8, 0.7, 0.6, 0.9, 0.8],
-    'Mixtral': [0.7, 0.9, 0.5, 0.8, 0.6],
-    'Gemma': [0.6, 0.8, 0.7, 0.7, 0.9]
+    'Llama-3.1 8B': [0.8, 0.7, 0.6, 0.9, 0.8, 0.7],
+    'Mixtral': [0.7, 0.9, 0.5, 0.8, 0.6, 0.8],
+    'Gemma': [0.6, 0.8, 0.7, 0.7, 0.9, 0.6]
 }
 errors = {
-    'Llama-3.1 8B': [0.08, 0.04, 0.03, 0.03, 0.02],
-    'Mixtral': [0.02, 0.09, 0.03, 0.02, 0.04],
-    'Gemma': [0.03, 0.06, 0.05, 0.03, 0.08]
+    'Llama-3.1 8B': [0.08, 0.04, 0.03, 0.03, 0.02, 0.05],
+    'Mixtral': [0.02, 0.09, 0.03, 0.02, 0.04, 0.06],
+    'Gemma': [0.03, 0.06, 0.05, 0.03, 0.08, 0.04]
 }
 
 fig, ax = radar_plot(categories, datasets, errors)
