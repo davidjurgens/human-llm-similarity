@@ -13,19 +13,27 @@ def radar_plot(categories, datasets, errors=None, title="Awesome Metrics"):
     # Color palette - vibrant colors with good contrast
     colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8']
 
+    # Calculate the offset angle
+    offset_angle = 2 * pi / (N * 20)  # Adjust this value to increase/decrease offset
+
+
     # Plot each dataset
     for i, (label, values) in enumerate(datasets.items()):
         values += values[:1]  # Repeat the first value to close the polygon
-        ax.plot(angles, values, 'o-', linewidth=3, color=colors[i % len(colors)], label=label)
         
-        ax.fill(angles, values, alpha=0.08, color=colors[i % len(colors)])
+        # Calculate offset angles for this dataset
+        dataset_angles = [angle + (i - len(datasets) / 2 + 0.5) * offset_angle for angle in angles]
+        
+        ax.plot(dataset_angles, values, 'o-', linewidth=3, color=colors[i % len(colors)], label=label)
+        
+        ax.fill(dataset_angles, values, alpha=0.08, color=colors[i % len(colors)])
 
         # Add error bars if provided
         if errors and label in errors:
             err = errors[label] + errors[label][:1]
             for j in range(len(values)):
-                ax.errorbar(angles[j], values[j], yerr=err[j], fmt='none', 
-                            ecolor=colors[i % len(colors)], capsize=4, capthick=2.5, elinewidth=2.5, alpha=0.8)
+                ax.errorbar(dataset_angles[j], values[j], yerr=err[j], fmt='none', 
+                            ecolor=colors[i % len(colors)], capsize=6, capthick=4, elinewidth=3.5, alpha=0.8)
 
     # Set category labels
     ax.set_xticks(angles[:-1])
