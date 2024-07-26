@@ -157,7 +157,7 @@ if __name__ == '__main__':
         data.insert(len(data.columns), "metric_punctuation", cap)
 
     if 'all' in metrics or 'syntax' in metrics:
-        args.no_response_indicators = "no response],[No Response],<CONV_STOP>,[SILENT]"
+        args.no_response_indicators = "[no response],[No Response],<CONV_STOP>,[SILENT]"
         args.metrics = 'all'
         bss = BasicSyntacticStatistics(args)
         df_human_turn_counts = bss.get_counts(data['human_turn_3'])
