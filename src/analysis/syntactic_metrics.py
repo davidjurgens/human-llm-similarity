@@ -26,7 +26,6 @@ class BasicSyntacticStatistics:
                 # 'typo_count', 'grammar_error_count', 'bleu', 'rouge', 'luar_similarity'
                 'typo_count', 'bleu', 'rouge', 'luar_similarity'
             ]
-            self.metric_list = ['luar_similarity']
         else:
             self.metric_list = args.metrics.split(',')
         self.no_response_indicator_list = args.no_response_indicators.split(',')
