@@ -5,7 +5,11 @@
 
 from collections import Counter, defaultdict
 import re
-from scipy.spatial.distance import cosine
+from scipy.spatial.distance import cosine, jensenshannon
+import os
+import pandas as pd
+from tqdm import tqdm
+import numpy as np
 
 
 class LiwcDistExtractor:
@@ -28,15 +32,6 @@ class LiwcDistExtractor:
         local_text = re.sub(r"\'d", " would ", local_text)
         local_text = re.sub(r"\'ll", " will ", local_text)
         local_text = re.sub(r"\'scuse", " excuse ", local_text)
-        mentions_re = re.compile(r'/u/\w*', re.MULTILINE)
-        quote_re = re.compile(r'<quote>.[^<]*</quote>', re.MULTILINE)
-        url_re = re.compile(r'http://[^\s]*', re.MULTILINE)
-        for m in mentions_re.findall(local_text):
-            local_text = local_text.replace(m, '_mention_')
-        for q in quote_re.findall(local_text):
-            local_text = local_text.replace(q, '_quote_')
-        for url in url_re.findall(local_text):
-            local_text = '_url_' + local_text.replace(url, tldextract.extract(url).domain)
         local_text = re.sub('\W', ' ', local_text)
         local_text = re.sub('\s+', ' ', local_text)
         local_text = local_text.strip(' ')
@@ -104,29 +99,50 @@ class LiwcDistExtractor:
             if self.normalize:
                 liwc_categ_in_text_normalized = list()
                 for cur_distrib in liwc_categ_in_text:
-                    tot_words = sum(cur_distrib.values())
+                    tot_words = max(sum(cur_distrib.values()), 1)
                     liwc_categ_in_text_normalized.append({word: cnt/tot_words for word, cnt in cur_distrib.items()})
                 return liwc_categ_in_text_normalized
             # if no need to normalize
             else:
                 return liwc_categ_in_text
     @staticmethod
-    def liwc_similarity(text1_liwc_dict, text2_liwc_dict, method='cosine'):
+    def liwc_similarity(text1_liwc_dict, text2_liwc_dict, method='jsd'):
         if text1_liwc_dict.keys() != text2_liwc_dict.keys():
             raise IOError("Invalid input for the similarity function. Keys must be the same name and order.")
         if method == 'cosine':
             dicts_similarity = cosine(list(text1_liwc_dict.values()), list(text2_liwc_dict.values()))
         elif method == 'manhattan':
             dicts_similarity = 1 - sum(abs(text1_liwc_dict[word] - text2_liwc_dict[word])/2.0 for word in text1_liwc_dict)
+        elif method == 'jsd':
+            dicts_similarity = 1 - jensenshannon(list(text1_liwc_dict.values()), list(text2_liwc_dict.values()))
         else:
-            raise IOError("Invalid method parameter")
+            raise IOError("Invalid method value for the similarity function")
         return dicts_similarity
 
-
 if __name__ == '__main__':
-    text_to_analyse = ['I myself am here', 'Great work. Good job', 'how ARE you?']
+    mod_dir = '/shared/0/projects/research-jam-summer-2024/data/english_only/prompting_results_clean/'
+    fname = os.listdir(mod_dir)[0] #there are 4 files here
+
+    # to get each dataframe
+    data = pd.read_json(mod_dir + fname, orient='records', lines=True)
+    vals = [c for c in data.columns if c.startswith('Prompt_')]
+    ids = [c for c in data.columns if c not in vals]
+    data = pd.melt(data, id_vars = ids, value_vars = vals, var_name = 'prompt', value_name = 'llm_turn_3')
+    data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
+
+    # cross tab on no response
+    pd.crosstab((data['human_turn_3'] == '[no response]'), (data['llm_turn_3'] == '[no response]'))
+
+    # produce a score comparing human vs. llm text
     liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
-    results = liwc_extractor_obj.extract_liwc_occurrences(text_to_analyse)
-    similarity = liwc_extractor_obj.liwc_similarity(results[1], results[2], method="cosine")
-    print(similarity)
+    liwc_similarities = list()
+    for row_idx, row_content in tqdm(data.iterrows()):
+        human_liwc_distrib = liwc_extractor_obj.extract_liwc_occurrences([row_content['human_turn_3']])[0]
+        llm_liwc_distrib = liwc_extractor_obj.extract_liwc_occurrences([row_content['llm_turn_3']])[0]
+        similarity = liwc_extractor_obj.liwc_similarity(human_liwc_distrib, llm_liwc_distrib, method="jsd")
+        liwc_similarities.append(similarity)
+    data['liwc_similarities'] = liwc_similarities
+    print(f"Mean and STD similarity: {np.nanmean(liwc_similarities)}, {np.nanstd(liwc_similarities)}")
+    # now results can be saved using data.to_csv()
+
 
