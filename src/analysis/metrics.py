@@ -8,12 +8,12 @@ from transformers import pipeline
 from tqdm import tqdm
 from scipy.spatial.distance import jensenshannon
 
-from analysis.pos_tags_JSD import pos_tag_metric
-from analysis.liwc_dist_extractor import LiwcDistExtractor
-from analysis.embedding_similarity import EmbeddingSimilarity
-from analysis.capitalization_punctuation_similarity import capitalization, punctuation
-from analysis.syntactic_metrics import BasicSyntacticStatistics
-from analysis.subjectivity import SubjectivityAnalyzer
+# from analysis.pos_tags_JSD import pos_tag_metric
+# from analysis.liwc_dist_extractor import LiwcDistExtractor
+# from analysis.embedding_similarity import EmbeddingSimilarity
+# from analysis.capitalization_punctuation_similarity import capitalization, punctuation
+# from analysis.syntactic_metrics import BasicSyntacticStatistics
+# from analysis.subjectivity import SubjectivityAnalyzer
 
 
 def enforce_reproducibility(seed=1000):
@@ -50,37 +50,79 @@ def run_hf_model(data, model_name, column_name):
     # First, human 3rd turn
     new_data = []
     for out in tqdm(pipe(hf_data(data), batch_size=4), total=len(data)):
-        new_data.append([s['score'] for s in out])
+        new_data.append([s for s in out])
     return new_data
 
 
 def sentiment(human, llm):
-    human_sentiment = run_hf_model(human, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment')
-    llm_sentiment = run_hf_model(llm, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment')
+    def convert_to_scalar(data):
+        score_map = {
+            'negative': 0,
+            'neutral': 0.5,
+            'positive': 1,
+        }
+        out_data = []
+        for d in data:
+            out_data.append(sum([score_map[s['label']]*s['score'] for s in d]))
+        return out_data
 
-    return 1 - jensenshannon(human_sentiment, llm_sentiment, axis=1)
+    human_sentiment = convert_to_scalar(run_hf_model(human, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment'))
+    llm_sentiment = convert_to_scalar(run_hf_model(llm, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment'))
+
+    return np.array(human_sentiment) - np.array(llm_sentiment)
 
 
 def formality(human, llm):
-    human_formality = run_hf_model(human, "s-nlp/mdeberta-base-formality-ranker", 'formality')
-    llm_formality = run_hf_model(llm, "s-nlp/mdeberta-base-formality-ranker", 'formality')
+    def convert_to_scalar(data):
+        # They use label 0 for formal
+        score_map = {
+            'LABEL_0': 1,
+            'LABEL_1': 0
+        }
+        out_data = []
+        for d in data:
+            out_data.append(sum([score_map[s['label']]*s['score'] for s in d]))
+        return out_data
 
-    return 1 - jensenshannon(human_formality, llm_formality, axis=1)
+    human_formality = convert_to_scalar(run_hf_model(human, "s-nlp/mdeberta-base-formality-ranker", 'formality'))
+    llm_formality = convert_to_scalar(run_hf_model(llm, "s-nlp/mdeberta-base-formality-ranker", 'formality'))
+
+    return np.array(human_formality) - np.array(llm_formality)
 
 
 def politeness(human, llm):
-    human_politeness = run_hf_model(human, "Genius1237/xlm-roberta-large-tydip", 'politeness')#[politenessr.predict([text])[0] for text in human]
-    llm_politeness = run_hf_model(llm, "Genius1237/xlm-roberta-large-tydip", 'politeness')#[politenessr.predict([text])[0] for text in llm]
+    def convert_to_scalar(data):
+        score_map = {
+            'polite': 1,
+            'impolite': 0
+        }
+        out_data = []
+        for d in data:
+            out_data.append(sum([score_map[d['label']]*d['score']]))
+        return out_data
+
+    human_politeness = convert_to_scalar(run_hf_model(human, "Genius1237/xlm-roberta-large-tydip", 'politeness'))#[politenessr.predict([text])[0] for text in human]
+    llm_politeness = convert_to_scalar(run_hf_model(llm, "Genius1237/xlm-roberta-large-tydip", 'politeness'))#[politenessr.predict([text])[0] for text in llm]
 
     # Now all of the prompts
-    return 1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
+    return np.array(human_politeness) - np.array(llm_politeness)#1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
 
 
 def toxicity(human, llm):
-    human_toxicity = run_hf_model(human, "s-nlp/roberta_toxicity_classifier", 'toxicity')
-    llm_toxicity = run_hf_model(llm, "s-nlp/roberta_toxicity_classifier", 'toxicity')
+    def convert_to_scalar(data):
+        score_map = {
+            'toxic': 1,
+            'neutral': 0
+        }
+        out_data = []
+        for d in data:
+            out_data.append(sum([score_map[d['label']]*d['score']]))
+        return out_data
+
+    human_toxicity = convert_to_scalar(run_hf_model(human, "s-nlp/roberta_toxicity_classifier", 'toxicity'))
+    llm_toxicity = convert_to_scalar(run_hf_model(llm, "s-nlp/roberta_toxicity_classifier", 'toxicity'))
     
-    return 1 - jensenshannon(human_toxicity, llm_toxicity, axis=1)
+    return np.array(human_toxicity) - np.array(llm_toxicity)
 
 
 def subjectivity(human, llm):
@@ -122,8 +164,11 @@ if __name__ == '__main__':
 
     # produce a score comparing human vs. llm text
     if 'all' in metrics or 'sentiment' in metrics:
-        sentiment = sentiment(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "metric_sentiment", sentiment)
+        sentiment_data = sentiment(data['human_turn_3'], data['llm_turn_3'])
+        if "metric_sentiment" not in data:
+            data.insert(len(data.columns), "metric_sentiment", sentiment_data)
+        else:
+            data['metric_sentiment'] = sentiment_data
 
     if 'all' in metrics or 'formality' in metrics:
         formality = formality(data['human_turn_3'], data['llm_turn_3'])
