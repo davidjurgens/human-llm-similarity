@@ -1,6 +1,8 @@
 import argparse
 import os
 import pandas as pd
+import logging
+import time
 
 from argparse import Namespace
 from pandas import DataFrame, Series
@@ -91,14 +93,20 @@ class BasicSyntacticStatistics:
         return len(matches)
 
     def get_bleu_score(self, text_pred: str, text_ref: str) -> float:
+        if len(text_pred) == 0 or len(text_ref) == 0:
+            return 0
         results = self.bleu_evaluator.compute(predictions=[text_pred], references=[text_ref])
         return results['bleu']
 
     def get_rogue_score(self, text_pred: str, text_ref: str) -> float:
+        if len(text_pred) == 0 or len(text_ref) == 0:
+            return 0
         results = self.rouge_evaluator.compute(predictions=[text_pred], references=[text_ref])
         return results
 
     def get_luar_similarity(self, text_pred: str, text_ref: str) -> float:
+        if len(text_pred) == 0 or len(text_ref) == 0:
+            return 0
         texts = [text_pred, text_ref]
         
         tokenized_texts = self.luar_tokenizer(texts, max_length=512, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
@@ -180,25 +188,52 @@ def main(args):
     input_folder = args.input_folder
     output_folder = args.output_folder
     
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(asctime)s] %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(os.path.join(args.log_folder, 'syntactic_metrics.log'), mode='a'),  # Log file in the current directory
+            logging.StreamHandler()  # Log to stdout
+        ]
+    )
+    logger = logging.getLogger(__name__)
+    
+    print("Beginning setting up class")
+    start = time.time()
     bss = BasicSyntacticStatistics(args)
+    end = time.time()
+    print(f"Completed setting up class in {end-start}s")
 
     try:
         for input_file_name in os.listdir(input_folder):
             print(input_file_name)
+            start = time.time()
             input_path = os.path.join(input_folder, input_file_name)
             df_input = get_dataframe(input_path)
+            end = time.time()
+            print(f"Completed getting data in {end-start}s")
             
+            start = time.time()
             df_human_turn_counts = bss.get_counts(df_input['human_turn_3'])
             df_human_turn_counts.rename(columns={col: f'human_turn_{col}' for col in df_human_turn_counts.columns}, inplace=True)
+            end = time.time()
+            print(f"Completed getting counts for human turns in {end-start}s")
+            start = time.time()
             df_llm_turn_counts = bss.get_counts(df_input['llm_turn_3'])
             df_llm_turn_counts.rename(columns={col: f'llm_turn_{col}' for col in df_llm_turn_counts.columns}, inplace=True)
+            end = time.time()
+            print(f"Completed getting counts for llm turns in {end-start}s")
+            start = time.time()
             df_metrics = bss.get_metrics(df_input['human_turn_3'], df_input['llm_turn_3'])
+            end = time.time()
+            print(f"Completed getting pairwise metrics in {end-start}s")
     
             df_output = pd.concat([df_input, df_human_turn_counts, df_llm_turn_counts, df_metrics], axis=1)
             
             output_file_path = os.path.join(output_folder, input_file_name)
             os.makedirs(output_folder, exist_ok=True)
             df_output.to_json(output_file_path, orient='records', lines=True)
+            print(f"Completed metric computations for {input_file_name}")
     except Exception as e:
         print(e)
         bss.grammar_checker.close()
@@ -215,6 +250,12 @@ if __name__ == '__main__':
         '--output_folder',
         help='Path to output computed metrics.',
         default="/home/kimjhj/projects/research-jam-summer-2024/human-llm-similarity/metrics/english_only/prompting_results_clean/",
+        type=str
+    )
+    parser.add_argument(
+        '--log_folder',
+        help='Path to store log.',
+        default="/home/kimjhj/projects/research-jam-summer-2024/",
         type=str
     )
     parser.add_argument(
