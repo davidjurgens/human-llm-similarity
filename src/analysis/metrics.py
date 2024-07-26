@@ -122,9 +122,9 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'liwc' in metrics:
         liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
-        human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'])
-        llm_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['llm_turn_3'])
-        liwc = liwc_extractor_obj.liwc_similarity(human_liwc, llm_liwc, method="cosine")
+        human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'])[0]
+        llm_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['llm_turn_3'])[0]
+        liwc = liwc_extractor_obj.liwc_similarity(human_liwc, llm_liwc, method="jsd")
         data.insert(len(data.columns), "metric_liwc", liwc)
 
     if 'all' in metrics or 'sbert' in metrics:
