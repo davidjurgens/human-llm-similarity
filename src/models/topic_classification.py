@@ -24,7 +24,6 @@ def enforce_reproducibility(seed=1000):
     np.random.seed(seed)
 
 def data(dataset, max_char_len=2000):
-
     for index, row in dataset.iterrows():
         yield row['human_turn_1'][:max_char_len]
 
