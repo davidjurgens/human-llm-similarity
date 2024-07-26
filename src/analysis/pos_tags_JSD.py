@@ -48,10 +48,10 @@ def pos_tag_metric(human_list, llm_list):
         human = list(human.values())
         llm = list(llm.values())
 
-        dist = jensenshannon(human, llm)
-        if math.isnan(dist):
-            dist = 1
-        pos_jsd.append(dist)
+        sim = 1 - jensenshannon(human, llm)
+        if math.isnan(sim):
+            sim = 1
+        pos_jsd.append(sim)
 
     return pos_jsd
 
