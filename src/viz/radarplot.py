@@ -2,16 +2,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import pi
 
-def radar_plot(categories, datasets, errors=None, title="Some Title"):
+def radar_plot(categories, datasets, errors=None, title="Awesome Metrics"):
     N = len(categories)
     angles = [n / float(N) * 2 * pi for n in range(N)]
     angles += angles[:1]
 
     # Set up the plot
-    fig, ax = plt.subplots(figsize=(12, 8), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(14, 10), subplot_kw=dict(polar=True))
 
-    # Color palette
-    colors = ['#1E88E5', '#FFC107', '#4CAF50', '#9C27B0', '#FF5722']
+    # Color palette - vibrant colors with good contrast
+    colors = ['#FF6B6B', '#4ECDC4', '#FFA500', '#9B59B6', '#3498DB']
 
     # Plot each dataset
     for i, (label, values) in enumerate(datasets.items()):
@@ -32,40 +32,46 @@ def radar_plot(categories, datasets, errors=None, title="Some Title"):
 
     # Set y-axis labels
     ax.set_rlabel_position(0)
-    ax.set_rticks([1, 2, 3, 4, 5])
-    ax.set_yticklabels(["1", "2", "3", "4", "5"], color="#333333", fontsize=10)
-    ax.set_ylim(0, 6)
+    ax.set_rticks([0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.set_yticklabels(["0.2", "0.4", "0.6", "0.8", "1.0"], color="#333333", fontsize=12)
+    ax.set_ylim(0, 1.1)
 
-    # Add subtle gridlines
+     # Add subtle gridlines with increased opacity
     ax.grid(color='#CCCCCC', linestyle='--', linewidth=0.5, alpha=0.7)
+
 
     # Remove spines
     ax.spines['polar'].set_visible(False)
 
-    # Add a legend
-    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
+    # Add a legend with a semi-transparent background
+    legend = ax.legend(loc='upper right', bbox_to_anchor=(1.1, 0.9), fontsize=12)
+    legend.get_frame().set_alpha(0.7)
+    legend.get_frame().set_facecolor('#F0F0F0')
 
-    # Set background color
-    ax.set_facecolor('#F5F5F5')
+    # Set background color for the plot area
+    ax.set_facecolor('#FAFAFA')
+    # ax.set_facecolor('#F5F5F5')
 
-    # Add title
-    plt.title(title, fontsize=20, fontweight='bold', pad=20, color='#333333')
+    # Add title with adjusted position
+    plt.title(title, fontsize=20, fontweight='bold', pad=30, color='#333333')
+
 
     # Adjust layout and display
-    plt.tight_layout()
+    plt.tight_layout()  # Increase padding
+
     return fig, ax
 
 # Sample data
 categories = ['Lexical', 'Syntax', 'Semantic', 'Style', 'Pragmatics']
 datasets = {
-    'Llama-3.1 8B': [4, 3, 2, 5, 4],
-    'Mixtral': [3, 5, 1, 4, 2],
-    'Gemma': [2, 4, 3, 3, 5]
+    'Llama-3.1 8B': [0.8, 0.7, 0.6, 0.9, 0.8],
+    'Mixtral': [0.7, 0.9, 0.5, 0.8, 0.6],
+    'Gemma': [0.6, 0.8, 0.7, 0.7, 0.9]
 }
 errors = {
-    'Llama-3.1 8B': [0.5, 0.4, 0.3, 0.6, 0.5],
-    'Mixtral': [0.3, 0.5, 0.2, 0.4, 0.3],
-    'Gemma': [0.4, 0.3, 0.5, 0.3, 0.6]
+    'Llama-3.1 8B': [0.08, 0.04, 0.03, 0.03, 0.02],
+    'Mixtral': [0.02, 0.09, 0.03, 0.02, 0.04],
+    'Gemma': [0.03, 0.06, 0.05, 0.03, 0.08]
 }
 
 fig, ax = radar_plot(categories, datasets, errors)
