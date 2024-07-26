@@ -96,28 +96,37 @@ class BasicSyntacticStatistics:
     def get_bleu_score(self, text_pred: str, text_ref: str) -> float:
         if len(text_pred) == 0 or len(text_ref) == 0:
             return 0
-        results = self.bleu_evaluator.compute(predictions=[text_pred], references=[text_ref])
-        return results['bleu']
+        try:
+            results = self.bleu_evaluator.compute(predictions=[text_pred], references=[text_ref])
+            return results['bleu']
+        except:
+            return 0
 
     def get_rogue_score(self, text_pred: str, text_ref: str) -> float:
         if len(text_pred) == 0 or len(text_ref) == 0:
             return 0
-        results = self.rouge_evaluator.compute(predictions=[text_pred], references=[text_ref])
-        return results
+        try:
+            results = self.rouge_evaluator.compute(predictions=[text_pred], references=[text_ref])
+            return results
+        except:
+            return 0
 
     def get_luar_similarity(self, text_pred: str, text_ref: str) -> float:
         if len(text_pred) == 0 or len(text_ref) == 0:
             return 0
         texts = [text_pred, text_ref]
-        
-        tokenized_texts = self.luar_tokenizer(texts, max_length=512, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
-        tokenized_texts['input_ids'] = tokenized_texts['input_ids'].reshape(2, 1, -1)
-        tokenized_texts['attention_mask'] = tokenized_texts['attention_mask'].reshape(2, 1, -1)
 
-        out = self.luar_embedder(**tokenized_texts)
-        out = out.detach().cpu()
-        
-        return F.cosine_similarity(out[0], out[1], dim=0).item()
+        try:
+            tokenized_texts = self.luar_tokenizer(texts, max_length=512, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
+            tokenized_texts['input_ids'] = tokenized_texts['input_ids'].reshape(2, 1, -1)
+            tokenized_texts['attention_mask'] = tokenized_texts['attention_mask'].reshape(2, 1, -1)
+    
+            out = self.luar_embedder(**tokenized_texts)
+            out = out.detach().cpu()
+            
+            return F.cosine_similarity(out[0], out[1], dim=0).item()
+        except:
+            return 0
 
     def get_counts(self, df_input: Series):
         df_output = {}
@@ -238,7 +247,7 @@ def main(args):
             print(f"Completed metric computations for {input_file_name}")
     except Exception as e:
         print(e)
-        bss.grammar_checker.close()
+        # bss.grammar_checker.close()
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CLI for syntactic metrics - get metrics for sampled conversation dataset')
