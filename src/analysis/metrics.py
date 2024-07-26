@@ -71,7 +71,7 @@ def sentiment(human, llm):
     human_sentiment = convert_to_scalar(run_hf_model(human, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment'))
     llm_sentiment = convert_to_scalar(run_hf_model(llm, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment'))
 
-    return np.array(human_sentiment) - np.array(llm_sentiment)
+    return np.array(llm_sentiment) - np.array(human_sentiment)
 
 
 def formality(human, llm):
@@ -89,7 +89,7 @@ def formality(human, llm):
     human_formality = convert_to_scalar(run_hf_model(human, "s-nlp/mdeberta-base-formality-ranker", 'formality'))
     llm_formality = convert_to_scalar(run_hf_model(llm, "s-nlp/mdeberta-base-formality-ranker", 'formality'))
 
-    return np.array(human_formality) - np.array(llm_formality)
+    return np.array(llm_formality) - np.array(human_formality)
 
 
 def politeness(human, llm):
@@ -107,7 +107,7 @@ def politeness(human, llm):
     llm_politeness = convert_to_scalar(run_hf_model(llm, "Genius1237/xlm-roberta-large-tydip", 'politeness'))#[politenessr.predict([text])[0] for text in llm]
 
     # Now all of the prompts
-    return np.array(human_politeness) - np.array(llm_politeness)#1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
+    return np.array(llm_politeness) - np.array(human_politeness)#1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
 
 
 def toxicity(human, llm):
@@ -124,7 +124,7 @@ def toxicity(human, llm):
     human_toxicity = convert_to_scalar(run_hf_model(human, "s-nlp/roberta_toxicity_classifier", 'toxicity'))
     llm_toxicity = convert_to_scalar(run_hf_model(llm, "s-nlp/roberta_toxicity_classifier", 'toxicity'))
     
-    return np.array(human_toxicity) - np.array(llm_toxicity)
+    return np.array(llm_toxicity) - np.array(human_toxicity)
 
 
 def subjectivity(human, llm):
