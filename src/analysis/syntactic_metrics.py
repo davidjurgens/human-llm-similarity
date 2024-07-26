@@ -9,6 +9,9 @@ import string
 from spellchecker import SpellChecker
 import language_tool_python
 import evaluate
+import torch
+import torch.nn.functional as F
+from transformers import AutoModel, AutoTokenizer
 
 
 class BasicSyntacticStatistics:
@@ -17,7 +20,7 @@ class BasicSyntacticStatistics:
             self.metric_list = [
                 'no_response_exact', 'no_response_include', 'word_count', 'char_count',
                 'upper_count', 'lower_count', 'space_count', 'space_count', 'alnum_count', 'punct_count',
-                'typo_count', 'grammar_error_count', 'bleu', 'rogue'
+                'typo_count', 'grammar_error_count', 'bleu', 'rogue', 'luar_similarity'
             ]
         else:
             self.metric_list = args.metrics.split(',')
@@ -31,7 +34,11 @@ class BasicSyntacticStatistics:
             self.bleu_evaluator = evaluate.load('bleu')
         if 'rogue' in self.metric_list:
             self.rouge_evaluator = evaluate.load('rouge')
-    
+        if 'luar_similarity' in self.metric_list:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.luar_tokenizer = AutoTokenizer.from_pretrained('rrivera1849/LUAR-CRUD')
+            self.luar_embedder = AutoModel.from_pretrained('rrivera1849/LUAR-CRUD', trust_remote_code=True).to(self.device)
+            
     def is_no_response(self, text: str, is_exact_match: bool = True) -> bool:
         if is_exact_match:
             return any(
@@ -91,6 +98,18 @@ class BasicSyntacticStatistics:
         results = self.rouge_evaluator.compute(predictions=[text_pred], references=[text_ref])
         return results
 
+    def get_luar_similarity(self, text_pred: str, text_ref: str) -> float:
+        texts = [text_pred, text_ref]
+        
+        tokenized_texts = self.luar_tokenizer(texts, max_length=512, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
+        tokenized_texts['input_ids'] = tokenized_texts['input_ids'].reshape(2, 1, -1)
+        tokenized_texts['attention_mask'] = tokenized_texts['attention_mask'].reshape(2, 1, -1)
+
+        out = self.luar_embedder(**tokenized_texts)
+        out = out.detach().cpu()
+        
+        return F.cosine_similarity(out[0], out[1], dim=0).item()
+
     def get_counts(self, df_input: Series):
         df_output = {}
         
@@ -143,6 +162,9 @@ class BasicSyntacticStatistics:
             for col in df_temp.columns:
                 df_output[col] = df_temp[col]
 
+        if 'luar_similarity' in self.metric_list:
+            df_output['luar_similarity'] = df_input1.combine(df_input2, self.get_luar_similarity)
+            
         return pd.DataFrame(df_output)
     
 
@@ -159,24 +181,27 @@ def main(args):
     output_folder = args.output_folder
     
     bss = BasicSyntacticStatistics(args)
-    
-    for input_file_name in os.listdir(input_folder):
-        input_path = os.path.join(input_folder, input_file_name)
-        df_input = get_dataframe(input_path)
-        
-        df_human_turn_counts = bss.get_counts(df_input['human_turn_3'])
-        df_human_turn_counts.rename(columns={col: f'human_turn_{col}' for col in df_human_turn_counts.columns}, inplace=True)
-        df_llm_turn_counts = bss.get_counts(df_input['llm_turn_3'])
-        df_llm_turn_counts.rename(columns={col: f'llm_turn_{col}' for col in df_llm_turn_counts.columns}, inplace=True)
-        df_metrics = bss.get_metrics(df_input['human_turn_3'], df_input['llm_turn_3'])
 
-        df_output = pd.concat([df_input, df_human_turn_counts, df_llm_turn_counts, df_metrics], axis=1)
-        
-        output_file_path = os.path.join(output_folder, input_file_name)
-        os.makedirs(output_folder, exist_ok=True)
-        df_output.to_json(output_file_path, orient='records', lines=True)
-        
-    bss.grammar_checker.close()
+    try:
+        for input_file_name in os.listdir(input_folder):
+            print(input_file_name)
+            input_path = os.path.join(input_folder, input_file_name)
+            df_input = get_dataframe(input_path)
+            
+            df_human_turn_counts = bss.get_counts(df_input['human_turn_3'])
+            df_human_turn_counts.rename(columns={col: f'human_turn_{col}' for col in df_human_turn_counts.columns}, inplace=True)
+            df_llm_turn_counts = bss.get_counts(df_input['llm_turn_3'])
+            df_llm_turn_counts.rename(columns={col: f'llm_turn_{col}' for col in df_llm_turn_counts.columns}, inplace=True)
+            df_metrics = bss.get_metrics(df_input['human_turn_3'], df_input['llm_turn_3'])
+    
+            df_output = pd.concat([df_input, df_human_turn_counts, df_llm_turn_counts, df_metrics], axis=1)
+            
+            output_file_path = os.path.join(output_folder, input_file_name)
+            os.makedirs(output_folder, exist_ok=True)
+            df_output.to_json(output_file_path, orient='records', lines=True)
+    except Exception as e:
+        print(e)
+        bss.grammar_checker.close()
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CLI for syntactic metrics - get metrics for sampled conversation dataset')
