@@ -5,7 +5,7 @@ import benepar
 import re
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-# from scipy.spatial.distance import jensenshannon
+from scipy.spatial.distance import jensenshannon
 import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
 import math
