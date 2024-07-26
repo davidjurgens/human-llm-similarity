@@ -7,13 +7,13 @@ import pandas as pd
 from transformers import pipeline
 from tqdm import tqdm
 from scipy.spatial.distance import jensenshannon
+from numpy import log
 
 from analysis.pos_tags_JSD import pos_tag_metric
 from analysis.liwc_dist_extractor import LiwcDistExtractor
 from analysis.embedding_similarity import EmbeddingSimilarity
 from analysis.capitalization_punctuation_similarity import capitalization, punctuation
 from analysis.syntactic_metrics import BasicSyntacticStatistics
-from analysis.subjectivity import SubjectivityAnalyzer
 
 
 def enforce_reproducibility(seed=1000):
@@ -82,14 +82,14 @@ def toxicity(human, llm):
     
     return 1 - jensenshannon(human_toxicity, llm_toxicity, axis=1)
 
+def is_no_response(col, no_response_indicator = '[no response]'): 
+    return (col == no_response_indicator).apply(lambda x: 1 if x else 0)
 
-def subjectivity(human, llm):
-    human_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(human)
-    llm_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(llm)
+def jitter_prob(p, eps = 1./1000.):
+    if p == 0: p = p + eps
+    elif p == 1: p = p - eps
+    return p
     
-    return 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data",
@@ -117,14 +117,83 @@ if __name__ == '__main__':
         data = pd.melt(data, id_vars=ids, value_vars=vals, var_name='prompt', value_name='llm_turn_3')
         data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
 
-        # cross tab on no response
-        pd.crosstab((data['human_turn_3'] == '[no response]'), (data['llm_turn_3'] == '[no response]'))
+    # compare whether the llm and human produces a response at the same time
+    if 'all' in metrics or 'end' in metrics:
+        human_end = is_no_response(data['human_turn_3']) 
+        llm_end = is_no_response(data['llm_turn_3'])
+        data.insert(len(data.columns), "human_end", human_end)
+        data.insert(len(data.columns), "llm_end", llm_end)
+        data.insert(len(data.columns), "metric_end", (human_end == llm_end).astype(int))
 
+    #subset to cases where llm and human produce a response for the remaining metrics
+    data_full = data
+    data = data_full[(is_no_response(data_full['human_turn_3']) == 0) & 
+                     (is_no_response(data_full['llm_turn_3']) == 0) & 
+                     (data_full['human_turn_3'].apply(len) > 0)]
+    
     # produce a score comparing human vs. llm text
+    if 'all' in metrics or 'lexical' in metrics:
+        args.no_response_indicators = '[no response]'
+        args.metrics = 'char_count,word_count,typo_count'
+        bss = BasicSyntacticStatistics(args)
+        #human metrics
+        human = bss.get_counts(data['human_turn_3'])
+        human['p_typo'] = human['typo_count'] / human['word_count']
+        #llm metrics
+        llm = bss.get_counts(data['llm_turn_3'])
+        llm['p_typo'] = llm['typo_count'] / llm['word_count']
+        #comparison
+        nchar = 1 - log(llm['char_count'] / human['char_count'])
+        typo = 1 - jensenshannon(np.array([(p, 1-p) for p in human['p_typo'].apply(jitter_prob)]), 
+                                 np.array([(p, 1-p) for p in llm['p_typo'].apply(jitter_prob)]), axis=1)
+        data.insert(len(data.columns), "metric_typo", typo)
+        
+    if 'all' in metrics or 'capitalization' in metrics:
+        cap = capitalization(data, 'human_turn_3', 'llm_turn_3')
+        data.insert(len(data.columns), "metric_capitalization", cap)
+
+    if 'all' in metrics or 'grammar' in metrics:
+        args.no_response_indicators = '[no response]'
+        args.metrics = 'grammar_error_count'
+        bss = BasicSyntacticStatistics(args)
+        #human metrics
+        human = bss.get_counts(data['human_turn_3'])
+        human['p_grammar'] = human['grammar_error_count'] / human['word_count']
+        #llm metrics
+        llm = bss.get_counts(data['llm_turn_3'])
+        llm['p_grammar'] = llm['grammar_error_count'] / llm['word_count']
+        #comparison
+        grammar = 1 - jensenshannon(np.array([(p, 1-p) for p in human['p_grammar'].apply(jitter_prob)]),
+                                    np.array([(p, 1-p) for p in llm['p_grammar'].apply(jitter_prob)]), axis=1)
+        data.insert(len(data.columns), "metric_grammar", grammar)
+        
+    if 'all' in metrics or 'punctuation' in metrics:
+        cap = punctuation(data, 'human_turn_3', 'llm_turn_3')
+        data.insert(len(data.columns), "metric_punctuation", cap)
+
+    if 'all' in metrics or 'pos' in metrics:
+        pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_pos", pos)
+
+    if 'all' in metrics or 'sbert' in metrics:
+        embeddings = EmbeddingSimilarity()
+        embeddings_1 = embeddings.get_embeddings(data['human_turn_3'])
+        embeddings_2 = embeddings.get_embeddings(data['llm_turn_3'])
+
+        similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
+        data.insert(len(data.columns), "metric_sbert", similarity)
+
     if 'all' in metrics or 'sentiment' in metrics:
         sentiment = sentiment(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_sentiment", sentiment)
 
+    if 'all' in metrics or 'semantic' in metrics:
+        args.no_response_indicators = '[no response]'
+        args.metrics = 'bleu,rogue,luar_similarity' 
+        bss = BasicSyntacticStatistics(args)
+        df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
+        data = pd.concat([data, df_metrics], axis=1)
+    
     if 'all' in metrics or 'formality' in metrics:
         formality = formality(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_formality", formality)
@@ -137,14 +206,6 @@ if __name__ == '__main__':
         toxicity = toxicity(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_toxicity", toxicity)
 
-    if 'all' in metrics or 'pos' in metrics:
-        pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "metric_pos", pos)
-
-    if 'all' in metrics or 'subjectivity' in metrics:
-        subjectivity = subjectivity(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "metric_subjectivity", subjectivity)
-
     if 'all' in metrics or 'liwc' in metrics:
         liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
         human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'].to_list())
@@ -152,31 +213,5 @@ if __name__ == '__main__':
         liwc = [liwc_extractor_obj.liwc_similarity(human, llm, method="jsd") for human, llm in zip(human_liwc, llm_liwc)]
         data.insert(len(data.columns), "metric_liwc", liwc)
 
-    if 'all' in metrics or 'sbert' in metrics:
-        embeddings = EmbeddingSimilarity()
-        embeddings_1 = embeddings.get_embeddings(data['human_turn_3'])
-        embeddings_2 = embeddings.get_embeddings(data['llm_turn_3'])
-
-        similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
-        data.insert(len(data.columns), "metric_sbert", similarity)
-
-    if 'all' in metrics or 'capitalization' in metrics:
-        cap = capitalization(data, 'human_turn_3', 'llm_turn_3')
-        data.insert(len(data.columns), "metric_capitalization", cap)
-
-    if 'all' in metrics or 'punctuation' in metrics:
-        cap = punctuation(data, 'human_turn_3', 'llm_turn_3')
-        data.insert(len(data.columns), "metric_punctuation", cap)
-
-    if 'all' in metrics or 'syntax' in metrics:
-        args.no_response_indicators = "[no response],[No Response],<CONV_STOP>,[SILENT]"
-        args.metrics = 'all'
-        bss = BasicSyntacticStatistics(args)
-        df_human_turn_counts = bss.get_counts(data['human_turn_3'])
-        df_human_turn_counts.rename(columns={col: f'human_turn_{col}' for col in df_human_turn_counts.columns},
-                                    inplace=True)
-        df_llm_turn_counts = bss.get_counts(data['llm_turn_3'])
-        df_llm_turn_counts.rename(columns={col: f'llm_turn_{col}' for col in df_llm_turn_counts.columns}, inplace=True)
-        df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
-        data = pd.concat([data, df_human_turn_counts, df_llm_turn_counts, df_metrics], axis=1)
+    data_full.to_json(re.sub('.json','_end.json',output_path), orient='records', lines=True)
     data.to_json(output_path, orient='records', lines=True)
