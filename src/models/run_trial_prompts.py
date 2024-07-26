@@ -70,7 +70,7 @@ if __name__ == '__main__':
     for j, prompt in tqdm(prompts.iterrows(), total=len(prompts)):
         batch = [
             tokenizer.apply_chat_template([
-                {"role": "user", "content": prompt['Prompt Design'].replace('[TURN1]', row['human_turn_1']).replace('[TURN2]', row['ai_turn_2'])}
+                {"role": "user", "content": prompt['Prompt Design'].replace('[TURN1]', row['human_turn_1'][:5000]).replace('[TURN2]', row['ai_turn_2'][:5000])}
             ], tokenize=False, add_special_tokens=False, add_generation_prompt=True)
             for index, row in data.iterrows()
         ]
@@ -78,7 +78,7 @@ if __name__ == '__main__':
         output_batch = llm.generate(batch, sampling_params)
         data[f"Prompt_{prompt['Prompt ID']}"] = [output.outputs[0].text.strip() for output in output_batch]
 
-    data.to_json(output_path, orient='records', lines=True)
+        data.to_json(output_path, orient='records', lines=True)
 
 
     # results = defaultdict(list)
