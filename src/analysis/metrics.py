@@ -74,6 +74,12 @@ def politeness(human, llm):
     return 1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
 
 
+def toxicity(human, llm):
+    human_toxicity = run_hf_model(human, "s-nlp/roberta_toxicity_classifier", 'toxicity')
+    llm_toxicity = run_hf_model(llm, "s-nlp/roberta_toxicity_classifier", 'toxicity')
+    
+    return 1 - jensenshannon(human_toxicity, llm_toxicity, axis=1)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -115,6 +121,10 @@ if __name__ == '__main__':
     if 'all' in metrics or 'politeness' in metrics:
         politeness = politeness(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_politeness", politeness)
+        
+    if 'all' in metrics or 'toxicity' in metrics:
+        toxicity = toxicity(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "metric_toxicity", toxicity)
 
     if 'all' in metrics or 'pos' in metrics:
         pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
