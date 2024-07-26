@@ -134,8 +134,8 @@ def subjectivity(human, llm):
     return 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
 
 def topic(human, llm):
-    human_topic = run_hf_model(human, "valpy/prompt-classification", 'topic')
-    llm_topic = run_hf_model(llm, "valpy/prompt-classification", 'topic')
+    human_topic = [[s['score'] for s in d] for d in run_hf_model(human, "valpy/prompt-classification", 'topic')]
+    llm_topic = [[s['score'] for s in d] for d in run_hf_model(llm, "valpy/prompt-classification", 'topic')]
 
     return 1 - jensenshannon(human_topic, llm_topic, axis=1)
 
