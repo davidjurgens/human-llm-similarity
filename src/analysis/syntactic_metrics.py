@@ -29,6 +29,9 @@ class BasicSyntacticStatistics:
             self.metric_list = args.metrics.split(',')
         self.no_response_indicator_list = args.no_response_indicators.split(',')
 
+        if 'contract_count' in self.metric_list:
+            with open(args.contraction_file_path) as input_file:
+                self.contractions_dict = json.load(input_file)
         if 'typo_count' in self.metric_list:
             self.spell_checker = SpellChecker()
         if 'grammar_error_count' in self.metric_list:
@@ -84,6 +87,13 @@ class BasicSyntacticStatistics:
     @staticmethod
     def get_punctuation_count(text: str) -> int:
         return sum(1 for char in text if string.punctuation.find(char) >= 0)
+
+    @staticmethod
+    def get_contraction_count(text: str) -> int:
+        try:
+            return sum(1 for word in text.split() if word in self.contractions_dict)
+        except Exception as e:
+            return 0
     
     def get_typo_count(self, text: str) -> int:
         misspelled = self.spell_checker.unknown(text.split())
@@ -111,12 +121,14 @@ class BasicSyntacticStatistics:
         except:
             return 0
 
-    def get_luar_similarity(self, text_pred: str, text_ref: str) -> float:
-        if len(text_pred) == 0 or len(text_ref) == 0:
-            return 0
-        texts = [text_pred, text_ref]
+    def get_luar_embeddings(self, text_series: Series) -> torch.Tensor:
+        batch_size = 32
+        num_batches = (len(text_series) - 1) // batch_size + 1
 
-        try:
+        embeddings = []
+        for i in range(num_batches):
+            texts = list(text_series.iloc[i*batch_size: (i+1)*batch_size])
+            actual_batch_size = len(texts)
             tokenized_texts = self.luar_tokenizer(texts, max_length=512, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
             tokenized_texts['input_ids'] = tokenized_texts['input_ids'].reshape(2, 1, -1)
             tokenized_texts['attention_mask'] = tokenized_texts['attention_mask'].reshape(2, 1, -1)
@@ -189,7 +201,17 @@ class BasicSyntacticStatistics:
 
         if 'luar_similarity' in self.metric_list:
             start = time.time()
-            df_output['luar_similarity'] = df_input1.combine(df_input2, self.get_luar_similarity)
+            embeddings_1 = self.get_luar_embeddings(df_input1)
+            end = time.time()
+            print(f"Completed embeddings_1 in {end-start}s")
+            
+            start = time.time()
+            embeddings_2 = self.get_luar_embeddings(df_input2)
+            end = time.time()
+            print(f"Completed embeddings_2 in {end-start}s")
+            
+            start = time.time()
+            df_output['luar_similarity'] = pd.Series(self.get_cosine_similarity(embeddings_1, embeddings_2), index=df_input1.index)
             end = time.time()
             print(f"Completed luar_similarity in {end-start}s")
             

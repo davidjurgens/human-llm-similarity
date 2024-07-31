@@ -55,7 +55,6 @@ class LiwcDistExtractor:
         >>> results = extract_liwc_occurrences(text_to_analyse, agg_results=False, normalize=True)
         >>> print(results)
         """
-
         cleaned_corpus = text_list#[self.clean_text(local_text=t) for t in text_list]
 
         # creating a counter of the LIWC categories to the given list of texts
