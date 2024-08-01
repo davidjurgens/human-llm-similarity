@@ -17,6 +17,7 @@ from analysis.syntactic_metrics import BasicSyntacticStatistics
 from analysis.subjectivity import SubjectivityAnalyzer
 from analysis.factuality_eval import get_align_score
 from analysis.constituency_parse import const_parse_metric
+from analysis.readability_score import get_flesch_readability, readability_single_column
 
 
 def enforce_reproducibility(seed=1000):
@@ -286,5 +287,12 @@ if __name__ == '__main__':
     if 'all' in metrics or 'constituency' in metrics:
         constituency = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_constituency_parse", constituency)
+
+    if 'all' in metrics or 'readability' in metrics:
+        # note that the function returns also nan values!
+        human = readability_single_column(data['human_turn_3'])
+        llm = readability_single_column(data['human_turn_3']) 
+        #comp = llm - human
+        #data.insert(len(data.columns), "metric_readability", comp)
 
     data.to_json(output_path, orient='records', lines=True)
