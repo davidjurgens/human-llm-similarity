@@ -120,10 +120,10 @@ class BasicSyntacticStatistics:
         if len(text_pred) == 0 or len(text_ref) == 0:
             return 0
         try:
-            results = self.rouge_evaluator.evaluate(predictions=[text_pred], references=[[text_ref]])
+            results = self.rouge_evaluator.evaluate([text_pred], [[text_ref]])
             return {key: value['f'] for key, value in results.items()}
         except:
-            return 0
+            return {}
 
     def get_luar_embeddings(self, text_series: Series) -> torch.Tensor:
         batch_size = 32
