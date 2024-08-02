@@ -10,6 +10,7 @@ from scipy.spatial.distance import jensenshannon
 from numpy import log
 import re
 import lmppl
+from argparse import Namespace
 
 from analysis.pos_tags_JSD import pos_tag_metric
 from analysis.liwc_dist_extractor import LiwcDistExtractor
@@ -190,40 +191,29 @@ def is_no_response(col, no_response_indicator = '[no response]'):
 
 # def compute_single_col_metrics(data, turn_name, metrics):
     
-#     if 'all' in metrics or 'lexical_basic' in metrics:
+#     if 'all' in metrics or 'lexical' in metrics:
 #         # count utterance length (log word count), avg. word length
-#         print("Metric: lexical")
+#         print("Metric: lexical_basic - log word count, avg. word length, capitalization, punctuation, contraction")
+#         args = Namespace()
 #         args.no_response_indicators = '[no response]'
-#         args.metrics = 'char_count,word_count'
+#         args.metrics = 'char_count,word_count,upper_count,lower_count,punct_count,contract_count'
+        
 #         bss = BasicSyntacticStatistics(args)
-#         metric = bss.get_counts(data[turn_name])
-#         metric['log_word_count'] = log(metric['word_count'], where=(metric['word_count'] != 0))
-#         metric['avg_word_length'] = metric['char_count'].div(metric['word_count'], fill_value=0)
-
-#         metric
-
-
+#         df_metric = bss.get_counts(data[turn_name])
         
-#         #human metrics
-#         human = bss.get_counts(data['human_turn_3'])
-#         human['p_typo'] = human['typo_count'] / human['word_count']
-#         #llm metrics
-#         llm = bss.get_counts(data['llm_turn_3'])
-#         llm['p_typo'] = llm['typo_count'] / llm['word_count']
-#         #comparison
-#         words = log(llm['word_count']) - log(human['word_count'])
-#         data.insert(len(data.columns), "metric_log_word_count", words)
-#         typo = llm['p_typo'] - human['p_typo']
-#         data.insert(len(data.columns), "human_typo", human['p_typo'])
-#         data.insert(len(data.columns), "llm_typo", llm['p_typo'])
-#         data.insert(len(data.columns), "metric_typo", typo)
-        
-#     if 'all' in metrics or 'capitalization' in metrics:
-#         print("Metric: capitalization")
-#         hum_cap, llm_cap, cap = capitalization(data, 'human_turn_3', 'llm_turn_3')
-#         data.insert(len(data.columns), "human_capitalization", hum_cap)
-#         data.insert(len(data.columns), "llm_capitalization", llm_cap)
-#         data.insert(len(data.columns), "metric_capitalization", cap)
+#         df_metric['log_word_count'] = log(df_metric['word_count'])
+#         df_metric['avg_word_length'] = df_metric['char_count'] / metric['word_count']
+#         df_metric['proportion_capital_over_alpha'] = df_metric['upper_count'] / (metric['upper_count'] + metric['lower_count'])
+#         df_metric['proportion_punctuation_over_char'] = df_metric['punct_count'] / metric['char_count']
+#         df_metric['proportion_contraction_over_word'] = df_metric['contract_count'] / metric['word_count']
+#         df_metric.fillna(
+#             value={
+#                 'avg_word_length': 0, 'proportion_capital_over_alpha': 0,
+#                 'proportion_punctuation_over_char': 0,
+#                 'proportion_contraction_over_word': 0
+#             },
+#             inplace=True
+#         )
 
 #     if 'all' in metrics or 'grammar' in metrics:
 #         print("Metric: grammar")
