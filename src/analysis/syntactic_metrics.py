@@ -15,6 +15,7 @@ from rouge_metric import PyRouge
 import torch
 import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
+import contractions
 
 
 class BasicSyntacticStatistics:
@@ -32,7 +33,7 @@ class BasicSyntacticStatistics:
 
         if 'contract_count' in self.metric_list:
             with open(args.contraction_file_path) as input_file:
-                self.contractions_dict = json.load(input_file)
+                self.contractions_dict = contractions.contractions_dict #json.load(input_file)
         if 'typo_count' in self.metric_list:
             self.spell_checker = SpellChecker()
         if 'grammar_error_count' in self.metric_list:
