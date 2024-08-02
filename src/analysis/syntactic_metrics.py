@@ -15,7 +15,7 @@ from rouge_metric import PyRouge
 import torch
 import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
-import contractions
+#import contractions
 
 
 class BasicSyntacticStatistics:
@@ -33,7 +33,7 @@ class BasicSyntacticStatistics:
 
         if 'contract_count' in self.metric_list:
             with open(args.contraction_file_path) as input_file:
-                self.contractions_dict = contractions.contractions_dict #json.load(input_file)
+                self.contractions_dict = json.load(input_file)#contractions.contractions_dict #
         if 'typo_count' in self.metric_list:
             self.spell_checker = SpellChecker()
         if 'grammar_error_count' in self.metric_list:
@@ -45,7 +45,6 @@ class BasicSyntacticStatistics:
             )
         if 'luar_similarity' in self.metric_list:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            torch.cuda.set_device(2)
             self.luar_tokenizer = AutoTokenizer.from_pretrained('rrivera1849/LUAR-CRUD')
             self.luar_embedder = AutoModel.from_pretrained('rrivera1849/LUAR-CRUD', trust_remote_code=True).to(self.device)
             
@@ -120,7 +119,7 @@ class BasicSyntacticStatistics:
         if len(text_pred) == 0 or len(text_ref) == 0:
             return 0
         try:
-            results = self.rouge_evaluator.evaluate(predictions=[text_pred], references=[[text_ref]])
+            results = self.rouge_evaluator.evaluate([text_pred], [[text_ref]])
             return {key: value['f'] for key, value in results.items()}
         except:
             return 0
