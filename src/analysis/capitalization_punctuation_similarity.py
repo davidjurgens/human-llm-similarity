@@ -29,7 +29,7 @@ def capitalization(df, human_col, ai_col):
     standard_ai = (ai_rates - human_mean) / human_std
 
     # calculate similarity LLM - human
-    return standard_ai - standard_human
+    return standard_human, standard_ai, standard_ai - standard_human
 
 
 def punctuation(df, human_col, ai_col):
@@ -62,4 +62,4 @@ def punctuation(df, human_col, ai_col):
     # calculate 1 - JSD for all examples
     for i in df.index:
         outputs.append(1 - jensenshannon(human_distributions[i], ai_distributions[i]))
-    return outputs
+    return human_distributions, ai_distributions, outputs
