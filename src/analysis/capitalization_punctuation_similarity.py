@@ -28,9 +28,8 @@ def capitalization(df, human_col, ai_col):
     standard_human = (human_rates - human_mean) / human_std
     standard_ai = (ai_rates - human_mean) / human_std
 
-    # calculate similarity as 1 - absolute difference
-    similarity = 1 - abs(standard_human - standard_ai)
-    return similarity
+    # calculate similarity LLM - human
+    return standard_ai - standard_human
 
 
 def punctuation(df, human_col, ai_col):
