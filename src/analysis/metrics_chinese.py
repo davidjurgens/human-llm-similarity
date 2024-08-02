@@ -85,13 +85,41 @@ def sentiment(human, llm):
 
     return human_sentiment, llm_sentiment, np.array(llm_sentiment) - np.array(human_sentiment)
 
+def toxicity(human, llm=None):
+    def convert_to_scalar(data):
+        score_map = {
+            'toxic': 1,
+            'neutral': 0
+        }
+        out_data = []
+        for d in data:
+            out_data.append(sum([score_map[s['label']]*s['score'] for s in d]))
+        return out_data
+
+    human_toxicity = convert_to_scalar(run_hf_model(human, "textdetox/xlmr-large-toxicity-classifier", 'toxicity'))
+    if llm is None:
+        return human_toxicity
+    llm_toxicity = convert_to_scalar(run_hf_model(llm, "textdetox/xlmr-large-toxicity-classifier", 'toxicity'))
+    
+    return human_toxicity, llm_toxicity, np.array(llm_toxicity) - np.array(human_toxicity)
+
+def perplexity(human, llm=None):
+    scorer = lmppl.LM('uer/gpt2-chinese-cluecorpussmall')
+    human_perplexity = scorer.get_perplexity(human, batch=8)
+    if llm is None:
+        return human_perplexity
+    llm_perplexity = scorer.get_perplexity(llm, batch=8)
+    
+    # Now all of the prompts
+    return human_perplexity, llm_perplexity, np.array(llm_perplexity) - np.array(human_perplexity)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data",
                         required=False)
     parser.add_argument("--output_path", type=str, help="Name of the file to save the generated text",
                         required=False)
-    parser.add_argument("--metrics", type=str, default='sentiment', help="Comma separated list of the metrics you want to run, or 'all' to run all")
+    parser.add_argument("--metrics", type=str, default='perplexity', help="Comma separated list of the metrics you want to run, or 'all' to run all")
     parser.add_argument("--seed", type=int, help="Random seed",
                         default=1000)
 
@@ -120,5 +148,19 @@ if __name__ == '__main__':
         data.insert(len(data.columns), "human_sentiment", human_sent)
         data.insert(len(data.columns), "llm_sentiment", llm_sent)
         data.insert(len(data.columns), "metric_sentiment", sentiment_data)
+
+    if 'all' in metrics or 'toxicity' in metrics:
+        print("Metric: toxicity")
+        human_toxic, llm_toxic, toxicity_data = toxicity(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_toxicity", human_toxic)
+        data.insert(len(data.columns), "llm_toxicity", llm_toxic)
+        data.insert(len(data.columns), "metric_toxicity", toxicity_data)
+
+    if 'all' in metrics or 'perplexity' in metrics:
+        print("Metric: perplexity")
+        human_perplexity, llm_perplexity, perplexity = perplexity(list(data['human_turn_3']), list(data['llm_turn_3']))
+        data.insert(len(data.columns), "human_perplexity", human_perplexity)
+        data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
+        data.insert(len(data.columns), "metric_perplexity", perplexity)
 
     a = 1
