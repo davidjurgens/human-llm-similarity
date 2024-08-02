@@ -51,7 +51,7 @@ def punctuation(df, human_col, ai_col):
         # divide counts by length of string to get rate
         punctuation_counts = {punct: count / len(text) for punct, count in punctuation_counts.items()}
 
-        return np.array(list(punctuation_counts.values()))
+        return punctuation_counts
     
     # calculate punctuation distributions for human and ai
     human_distributions = df[human_col].apply(punctuation_rate)
@@ -59,7 +59,8 @@ def punctuation(df, human_col, ai_col):
 
     outputs = []
     
-    # calculate 1 - JSD for all examples
+    # calculate MSE for all examples
     for i in df.index:
-        outputs.append(1 - jensenshannon(human_distributions[i], ai_distributions[i]))
+        outputs.append(np.sqrt(np.mean((np.array(list(human_distributions[i].values())) -
+                                        np.array(list(ai_distributions[i].values()))) ** 2)))
     return human_distributions, ai_distributions, outputs
