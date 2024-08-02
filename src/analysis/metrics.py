@@ -60,7 +60,7 @@ def run_hf_model(data, model_name, column_name):
     return new_data
 
 
-def sentiment(human, llm):
+def sentiment(human, llm=None):
     def convert_to_scalar(data):
         score_map = {
             'negative': 0,
@@ -73,12 +73,25 @@ def sentiment(human, llm):
         return out_data
 
     human_sentiment = convert_to_scalar(run_hf_model(human, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment'))
+    if llm is None:
+        return human_sentiment
     llm_sentiment = convert_to_scalar(run_hf_model(llm, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment'))
 
     return human_sentiment, llm_sentiment, np.array(llm_sentiment) - np.array(human_sentiment)
 
+def combine_precomputed(col_1_data, col_2_data, metric_name):
+    '''
+        col_1_data: By default should be human
+        col_2_data: By default should be llm
+    '''
+    if metric_name in ["sentiment", "formality", "politeness", "perplexity", "toxicity", "readability"]:
+        return col_1_data, col_2_data, np.array(col_2_data) - np.array(col_1_data)
+    elif metric_name in ["subjectivity", "topic"]:
+        return col_1_data, col_2_data, 1 - jensenshannon(col_1_data, col_2_data, axis=1)
+    else:
+        raise KeyError("Metric Name not found!")
 
-def formality(human, llm):
+def formality(human, llm=None):
     def convert_to_scalar(data):
         # They use label 0 for formal
         score_map = {
@@ -91,12 +104,14 @@ def formality(human, llm):
         return out_data
 
     human_formality = convert_to_scalar(run_hf_model(human, "s-nlp/mdeberta-base-formality-ranker", 'formality'))
+    if llm is None:
+        return human_formality
     llm_formality = convert_to_scalar(run_hf_model(llm, "s-nlp/mdeberta-base-formality-ranker", 'formality'))
 
     return human_formality, llm_formality, np.array(llm_formality) - np.array(human_formality)
 
 
-def politeness(human, llm):
+def politeness(human, llm=None):
     def convert_to_scalar(data):
         score_map = {
             'polite': 1,
@@ -108,21 +123,25 @@ def politeness(human, llm):
         return out_data
 
     human_politeness = convert_to_scalar(run_hf_model(human, "Genius1237/xlm-roberta-large-tydip", 'politeness'))#[politenessr.predict([text])[0] for text in human]
+    if llm is None:
+        return human_politeness
     llm_politeness = convert_to_scalar(run_hf_model(llm, "Genius1237/xlm-roberta-large-tydip", 'politeness'))#[politenessr.predict([text])[0] for text in llm]
 
     # Now all of the prompts
     return human_politeness, llm_politeness, np.array(llm_politeness) - np.array(human_politeness)#1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
 
-def perplexity(human, llm):
+def perplexity(human, llm=None):
     scorer = lmppl.LM('gpt2')
     human_perplexity = scorer.get_perplexity(human)
+    if llm is None:
+        return human_perplexity
     llm_perplexity = scorer.get_perplexity(llm)
     
     # Now all of the prompts
     return human_perplexity, llm_perplexity, np.array(llm_perplexity) - np.array(human_perplexity)
 
 
-def toxicity(human, llm):
+def toxicity(human, llm=None):
     def convert_to_scalar(data):
         score_map = {
             'toxic': 1,
@@ -134,19 +153,25 @@ def toxicity(human, llm):
         return out_data
 
     human_toxicity = convert_to_scalar(run_hf_model(human, "s-nlp/roberta_toxicity_classifier", 'toxicity'))
+    if llm is None:
+        return human_toxicity
     llm_toxicity = convert_to_scalar(run_hf_model(llm, "s-nlp/roberta_toxicity_classifier", 'toxicity'))
     
     return human_toxicity, llm_toxicity, np.array(llm_toxicity) - np.array(human_toxicity)
 
 
-def subjectivity(human, llm):
+def subjectivity(human, llm=None):
     human_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(human)
+    if llm is None:
+        return human_subjectivity
     llm_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(llm)
     
     return human_subjectivity, llm_subjectivity, 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
 
-def topic(human, llm):
+def topic(human, llm=None):
     human_topic = [[s['score'] for s in d] for d in run_hf_model(human, "valpy/prompt-classification", 'topic')]
+    if llm is None:
+        return human_topic
     llm_topic = [[s['score'] for s in d] for d in run_hf_model(llm, "valpy/prompt-classification", 'topic')]
 
     return human_topic, llm_topic, 1 - jensenshannon(human_topic, llm_topic, axis=1)
@@ -293,10 +318,10 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'topic' in metrics:
         print("Metric: topic")
-        human_topic, llm_topic, topic = topic(data['human_turn_3'], data['llm_turn_3'])
+        human_topic, llm_topic, topic_data = topic(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "human_topic", human_topic)
         data.insert(len(data.columns), "llm_topic", llm_topic)
-        data.insert(len(data.columns), "metric_topic", topic)
+        data.insert(len(data.columns), "metric_topic", topic_data)
 
     if 'all' in metrics or 'sentiment' in metrics:
         print("Metric: sentiment")
@@ -328,17 +353,17 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'subjectivity' in metrics:
         print("Metric: subjectivity")
-        human_subject, llm_subject, subjectivity = subjectivity(data['human_turn_3'], data['llm_turn_3'])
+        human_subject, llm_subject, subjectivity_data = subjectivity(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "human_subjectivity", human_subject)
         data.insert(len(data.columns), "llm_subjectivity", llm_subject)
-        data.insert(len(data.columns), "metric_subjectivity", subjectivity)
+        data.insert(len(data.columns), "metric_subjectivity", subjectivity_data)
 
     if 'all' in metrics or 'perplexity' in metrics:
         print("Metric: perplexity")
-        human_perplexity, llm_perplexity, perplexity = subjectivity(data['human_turn_3'], data['llm_turn_3'])
+        human_perplexity, llm_perplexity, perplexity_data = perplexity(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "human_perplexity", human_perplexity)
         data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
-        data.insert(len(data.columns), "metric_perplexity", perplexity)
+        data.insert(len(data.columns), "metric_perplexity", perplexity_data)
 
     if 'all' in metrics or 'factuality' in metrics:
         print("Metric: factuality")
@@ -356,7 +381,7 @@ if __name__ == '__main__':
         print("Metric: readability")
         # note that the function returns also nan values!
         human = readability_single_column(data['human_turn_3'])
-        llm = readability_single_column(data['human_turn_3']) 
+        llm = readability_single_column(data['llm_turn_3']) 
         comp = llm - human
         data.insert(len(data.columns), "human_readability", human)
         data.insert(len(data.columns), "llm_readability", llm)
