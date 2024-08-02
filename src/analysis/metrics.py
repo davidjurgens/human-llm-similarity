@@ -8,6 +8,7 @@ from transformers import pipeline
 from tqdm import tqdm
 from scipy.spatial.distance import jensenshannon
 from numpy import log
+import re
 
 from analysis.pos_tags_JSD import pos_tag_metric
 from analysis.liwc_dist_extractor import LiwcDistExtractor
@@ -73,7 +74,7 @@ def sentiment(human, llm):
     human_sentiment = convert_to_scalar(run_hf_model(human, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment'))
     llm_sentiment = convert_to_scalar(run_hf_model(llm, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment'))
 
-    return np.array(llm_sentiment) - np.array(human_sentiment)
+    return human_sentiment, llm_sentiment, np.array(llm_sentiment) - np.array(human_sentiment)
 
 
 def formality(human, llm):
@@ -91,7 +92,7 @@ def formality(human, llm):
     human_formality = convert_to_scalar(run_hf_model(human, "s-nlp/mdeberta-base-formality-ranker", 'formality'))
     llm_formality = convert_to_scalar(run_hf_model(llm, "s-nlp/mdeberta-base-formality-ranker", 'formality'))
 
-    return np.array(llm_formality) - np.array(human_formality)
+    return human_formality, llm_formality, np.array(llm_formality) - np.array(human_formality)
 
 
 def politeness(human, llm):
@@ -102,14 +103,14 @@ def politeness(human, llm):
         }
         out_data = []
         for d in data:
-            out_data.append(sum([score_map[d['label']]*d['score']]))
+            out_data.append(sum([score_map[s['label']]*s['score'] for s in d]))
         return out_data
 
     human_politeness = convert_to_scalar(run_hf_model(human, "Genius1237/xlm-roberta-large-tydip", 'politeness'))#[politenessr.predict([text])[0] for text in human]
     llm_politeness = convert_to_scalar(run_hf_model(llm, "Genius1237/xlm-roberta-large-tydip", 'politeness'))#[politenessr.predict([text])[0] for text in llm]
 
     # Now all of the prompts
-    return np.array(llm_politeness) - np.array(human_politeness)#1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
+    return human_politeness, llm_politeness, np.array(llm_politeness) - np.array(human_politeness)#1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
 
 
 def toxicity(human, llm):
@@ -120,26 +121,32 @@ def toxicity(human, llm):
         }
         out_data = []
         for d in data:
-            out_data.append(sum([score_map[d['label']]*d['score']]))
+            out_data.append(sum([score_map[s['label']]*s['score'] for s in d]))
         return out_data
 
     human_toxicity = convert_to_scalar(run_hf_model(human, "s-nlp/roberta_toxicity_classifier", 'toxicity'))
     llm_toxicity = convert_to_scalar(run_hf_model(llm, "s-nlp/roberta_toxicity_classifier", 'toxicity'))
     
-    return np.array(llm_toxicity) - np.array(human_toxicity)
+    return human_toxicity, llm_toxicity, np.array(llm_toxicity) - np.array(human_toxicity)
 
 
 def subjectivity(human, llm):
     human_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(human)
     llm_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(llm)
     
-    return 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
+    return human_subjectivity, llm_subjectivity, 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
 
 def topic(human, llm):
     human_topic = [[s['score'] for s in d] for d in run_hf_model(human, "valpy/prompt-classification", 'topic')]
     llm_topic = [[s['score'] for s in d] for d in run_hf_model(llm, "valpy/prompt-classification", 'topic')]
 
-    return 1 - jensenshannon(human_topic, llm_topic, axis=1)
+    return human_topic, llm_topic, 1 - jensenshannon(human_topic, llm_topic, axis=1)
+
+
+def jitter_prob(p, eps = 1./1000.):
+    if p == 0: p = p + eps
+    elif p == 1: p = p - eps
+    return p
 
 
 def is_no_response(col, no_response_indicator = '[no response]'): 
@@ -175,6 +182,7 @@ if __name__ == '__main__':
 
     # compare whether the llm and human produces a response at the same time
     if 'all' in metrics or 'end' in metrics:
+        print("Metric: end")
         human_end = is_no_response(data['human_turn_3']) 
         llm_end = is_no_response(data['llm_turn_3'])
         data.insert(len(data.columns), "human_end", human_end)
@@ -188,6 +196,7 @@ if __name__ == '__main__':
                  (is_no_response(data['llm_turn_3']) == 0)]
     
     if 'all' in metrics or 'lexical' in metrics:
+        print("Metric: lexical")
         args.no_response_indicators = '[no response]'
         args.metrics = 'char_count,word_count,typo_count'
         bss = BasicSyntacticStatistics(args)
@@ -199,17 +208,23 @@ if __name__ == '__main__':
         llm['p_typo'] = llm['typo_count'] / llm['word_count']
         #comparison
         words = log(llm['word_count']) - log(human['word_count'])
-        data.insert(len(data.columns), "metric_log_word_count", typo)
+        data.insert(len(data.columns), "metric_log_word_count", words)
         typo = llm['p_typo'] - human['p_typo']
+        data.insert(len(data.columns), "human_typo", human['p_typo'])
+        data.insert(len(data.columns), "llm_typo", llm['p_typo'])
         data.insert(len(data.columns), "metric_typo", typo)
         
     if 'all' in metrics or 'capitalization' in metrics:
-        cap = capitalization(data, 'human_turn_3', 'llm_turn_3')
+        print("Metric: capitalization")
+        hum_cap, llm_cap, cap = capitalization(data, 'human_turn_3', 'llm_turn_3')
+        data.insert(len(data.columns), "human_capitalization", hum_cap)
+        data.insert(len(data.columns), "llm_capitalization", llm_cap)
         data.insert(len(data.columns), "metric_capitalization", cap)
 
     if 'all' in metrics or 'grammar' in metrics:
+        print("Metric: grammar")
         args.no_response_indicators = '[no response]'
-        args.metrics = 'grammar_error_count'
+        args.metrics = 'grammar_error_count,word_count'
         bss = BasicSyntacticStatistics(args)
         #human metrics
         human = bss.get_counts(data['human_turn_3'])
@@ -220,79 +235,113 @@ if __name__ == '__main__':
         #comparison
         grammar = 1 - jensenshannon(np.array([(p, 1-p) for p in human['p_grammar'].apply(jitter_prob)]),
                                     np.array([(p, 1-p) for p in llm['p_grammar'].apply(jitter_prob)]), axis=1)
+        data.insert(len(data.columns), "human_grammar", human['p_grammar'].apply(jitter_prob))
+        data.insert(len(data.columns), "llm_grammar", llm['p_grammar'].apply(jitter_prob))
         data.insert(len(data.columns), "metric_grammar", grammar)
         
     if 'all' in metrics or 'punctuation' in metrics:
-        cap = punctuation(data, 'human_turn_3', 'llm_turn_3')
-        data.insert(len(data.columns), "metric_punctuation", cap)
+        print("Metric: punctuation")
+        hum_pun, llm_pun, pun = punctuation(data, 'human_turn_3', 'llm_turn_3')
+        data.insert(len(data.columns), "human_punctuation", hum_pun)
+        data.insert(len(data.columns), "llm_punctuation", llm_pun)
+        data.insert(len(data.columns), "metric_punctuation", pun)
 
     if 'all' in metrics or 'pos' in metrics:
-        pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
+        print("Metric: pos")
+        hum_pos, llm_pos, pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_pos", hum_pos)
+        data.insert(len(data.columns), "llm_pos", llm_pos)
         data.insert(len(data.columns), "metric_pos", pos)
 
     if 'all' in metrics or 'sbert' in metrics:
+        print("Metric: sbert")
         embeddings = EmbeddingSimilarity()
-        embeddings_1 = embeddings.get_embeddings(data['human_turn_3'])
-        embeddings_2 = embeddings.get_embeddings(data['llm_turn_3'])
+        embeddings_1 = embeddings.get_embeddings(list(data['human_turn_3']))
+        embeddings_2 = embeddings.get_embeddings(list(data['llm_turn_3']))
         similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
         data.insert(len(data.columns), "metric_sbert", similarity)
 
     if 'all' in metrics or 'semantic' in metrics:
+        print("Metric: semantic")
         args.no_response_indicators = '[no response]'
-        args.metrics = 'bleu,rogue,luar_similarity' 
+        #args.metrics = 'bleu,rogue,luar_similarity'
+        args.metrics = 'bleu,rogue'
         bss = BasicSyntacticStatistics(args)
         df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
-        rouge = 1 - jensenshannon(np.array([(p, 1-p) for p in human['p_grammar'].apply(jitter_prob)]),
-                                  np.array([(p, 1-p) for p in llm['p_grammar'].apply(jitter_prob)]), axis=1)
+        # rouge = 1 - jensenshannon(np.array([(p, 1-p) for p in human['p_grammar'].apply(jitter_prob)]),
+        #                           np.array([(p, 1-p) for p in llm['p_grammar'].apply(jitter_prob)]), axis=1)
         data = pd.concat([data, df_metrics], axis=1)
     
     if 'all' in metrics or 'liwc' in metrics:
+        print("Metric: liwc")
         liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
         human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'].to_list())
         llm_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['llm_turn_3'].to_list())
         liwc = [liwc_extractor_obj.liwc_similarity(human, llm, method="jsd") for human, llm in zip(human_liwc, llm_liwc)]
+        data.insert(len(data.columns), "human_liwc", human_liwc)
+        data.insert(len(data.columns), "llm_liwc", llm_liwc)
         data.insert(len(data.columns), "metric_liwc", liwc)
 
     if 'all' in metrics or 'topic' in metrics:
-        topic = topic(data['human_turn_3'], data['llm_turn_3'])
+        print("Metric: topic")
+        human_topic, llm_topic, topic = topic(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_topic", human_topic)
+        data.insert(len(data.columns), "llm_topic", llm_topic)
         data.insert(len(data.columns), "metric_topic", topic)
 
     if 'all' in metrics or 'sentiment' in metrics:
-        sentiment_data = sentiment(data['human_turn_3'], data['llm_turn_3'])
-        if "metric_sentiment" not in data:
-            data.insert(len(data.columns), "metric_sentiment", sentiment_data)
-        else:
-            data['metric_sentiment'] = sentiment_data
+        print("Metric: sentiment")
+        human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_sentiment", human_sent)
+        data.insert(len(data.columns), "llm_sentiment", llm_sent)
+        data.insert(len(data.columns), "metric_sentiment", sentiment_data)
 
     if 'all' in metrics or 'formality' in metrics:
-        formality = formality(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "metric_formality", formality)
+        print("Metric: formality")
+        human_form, llm_form, formality_data = formality(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_formality", human_form)
+        data.insert(len(data.columns), "llm_formality", llm_form)
+        data.insert(len(data.columns), "metric_formality", formality_data)
 
     if 'all' in metrics or 'politeness' in metrics:
-        politeness = politeness(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "metric_politeness", politeness)
+        print("Metric: politeness")
+        human_polite, llm_polite, politeness_data = politeness(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_politeness", human_polite)
+        data.insert(len(data.columns), "llm_politeness", llm_polite)
+        data.insert(len(data.columns), "metric_politeness", politeness_data)
         
     if 'all' in metrics or 'toxicity' in metrics:
-        toxicity = toxicity(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "metric_toxicity", toxicity)
+        print("Metric: toxicity")
+        human_toxic, llm_toxic, toxicity_data = toxicity(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_toxicity", human_toxic)
+        data.insert(len(data.columns), "llm_toxicity", llm_toxic)
+        data.insert(len(data.columns), "metric_toxicity", toxicity_data)
 
     if 'all' in metrics or 'subjectivity' in metrics:
-        subjectivity = subjectivity(data['human_turn_3'], data['llm_turn_3'])
+        print("Metric: subjectivity")
+        human_subject, llm_subject, subjectivity = subjectivity(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_subjectivity", human_subject)
+        data.insert(len(data.columns), "llm_subjectivity", llm_subject)
         data.insert(len(data.columns), "metric_subjectivity", subjectivity)
 
     if 'all' in metrics or 'factuality' in metrics:
+        print("Metric: factuality")
         fact = get_align_score(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_factuality", fact)
 
     if 'all' in metrics or 'constituency' in metrics:
+        print("Metric: constituency")
         constituency = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_constituency_parse", constituency)
 
     if 'all' in metrics or 'readability' in metrics:
+        print("Metric: readability")
         # note that the function returns also nan values!
         human = readability_single_column(data['human_turn_3'])
         llm = readability_single_column(data['human_turn_3']) 
-        #comp = llm - human
-        #data.insert(len(data.columns), "metric_readability", comp)
+        comp = llm - human
+        data.insert(len(data.columns), "human_readability", human)
+        data.insert(len(data.columns), "llm_readability", llm)
+        data.insert(len(data.columns), "metric_readability", comp)
 
     data.to_json(output_path, orient='records', lines=True)
