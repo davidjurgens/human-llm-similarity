@@ -17,7 +17,7 @@ def plot_top_words(model,
                    output_path:str):
     """Plots the topic clusters with each cluster 20 topics.
     """
-    fig, axes = plt.subplots(20, 5, figsize=(150, 15), sharex=True)
+    fig, axes = plt.subplots(20, 5, figsize=(30, 150), sharex=True)
     axes = axes.flatten()
     for topic_idx, topic in enumerate(model.components_):
         top_features_ind = topic.argsort()[-n_top_words:]
@@ -81,8 +81,10 @@ def lda_model(n_topics: int):
         random_state=0)
 
 
+
 def process_string(input:str):
     return input.lower()
+
 
 
 def main(args):
@@ -99,7 +101,7 @@ def main(args):
     lda = lda_model(args.n_topics)
     lda.fit(tf)
 
-    topic_features, topic_weights = extract_topics(lda, tf_feature_names, args.n_top_words, args.output_path)
+    # topic_features, topic_weights = extract_topics(lda, tf_feature_names, args.n_top_words, args.output_path)
     plot_top_words(lda, tf_feature_names, args.n_top_words, "Top 100 Topics in LDA model", args.output_path)
 
 
