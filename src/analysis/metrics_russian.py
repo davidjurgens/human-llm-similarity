@@ -103,13 +103,23 @@ def toxicity(human, llm=None):
     
     return human_toxicity, llm_toxicity, np.array(llm_toxicity) - np.array(human_toxicity)
 
+def perplexity(human, llm=None):
+    scorer = lmppl.LM('ai-forever/rugpt3small_based_on_gpt2')
+    human_perplexity = scorer.get_perplexity(human, batch=8)
+    if llm is None:
+        return human_perplexity
+    llm_perplexity = scorer.get_perplexity(llm, batch=8)
+    
+    # Now all of the prompts
+    return human_perplexity, llm_perplexity, np.array(llm_perplexity) - np.array(human_perplexity)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data",
                         required=False)
     parser.add_argument("--output_path", type=str, help="Name of the file to save the generated text",
                         required=False)
-    parser.add_argument("--metrics", type=str, default='toxicity', help="Comma separated list of the metrics you want to run, or 'all' to run all")
+    parser.add_argument("--metrics", type=str, default='perplexity', help="Comma separated list of the metrics you want to run, or 'all' to run all")
     parser.add_argument("--seed", type=int, help="Random seed",
                         default=1000)
 
@@ -145,5 +155,12 @@ if __name__ == '__main__':
         data.insert(len(data.columns), "human_toxicity", human_toxic)
         data.insert(len(data.columns), "llm_toxicity", llm_toxic)
         data.insert(len(data.columns), "metric_toxicity", toxicity_data)
+
+    if 'all' in metrics or 'perplexity' in metrics:
+        print("Metric: perplexity")
+        human_perplexity, llm_perplexity, perplexity = perplexity(list(data['human_turn_3']), list(data['llm_turn_3']))
+        data.insert(len(data.columns), "human_perplexity", human_perplexity)
+        data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
+        data.insert(len(data.columns), "metric_perplexity", perplexity)
 
     a = 1
