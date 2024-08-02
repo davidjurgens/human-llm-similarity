@@ -17,9 +17,9 @@ from analysis.liwc_dist_extractor import LiwcDistExtractor
 from analysis.embedding_similarity import EmbeddingSimilarity
 from analysis.capitalization_punctuation_similarity import capitalization, punctuation
 from analysis.syntactic_metrics import BasicSyntacticStatistics
-from analysis.subjectivity import SubjectivityAnalyzer
-from analysis.factuality_eval import get_align_score
-from analysis.constituency_parse import const_parse_metric
+#from analysis.subjectivity import SubjectivityAnalyzer
+#from analysis.factuality_eval import get_align_score
+#from analysis.constituency_parse import const_parse_metric
 from analysis.readability_score import get_flesch_readability, readability_single_column
 
 
@@ -133,10 +133,10 @@ def politeness(human, llm=None):
 
 def perplexity(human, llm=None):
     scorer = lmppl.LM('gpt2')
-    human_perplexity = scorer.get_perplexity(human)
+    human_perplexity = scorer.get_perplexity(human, batch=8)
     if llm is None:
         return human_perplexity
-    llm_perplexity = scorer.get_perplexity(llm)
+    llm_perplexity = scorer.get_perplexity(llm, batch=8)
     
     # Now all of the prompts
     return human_perplexity, llm_perplexity, np.array(llm_perplexity) - np.array(human_perplexity)
@@ -291,9 +291,9 @@ def compute_single_col_metric(data, turn_name, metric, output_path):
 
     df_metric.to_json(output_path, orient='records', lines=True)
 
-def compute_pairwise_metrics(data, turn_name_1, turn_name_2, metrics):
+# def compute_pairwise_metrics(data, turn_name_1, turn_name_2, metrics):
     
-    dataframe.save()
+#     dataframe.save()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -336,21 +336,41 @@ if __name__ == '__main__':
     # produce a score comparing human vs. llm text
     data = data[(is_no_response(data['human_turn_3']) == 0) & 
                  (is_no_response(data['llm_turn_3']) == 0)]
-    
+
     if 'all' in metrics or 'lexical' in metrics:
         print("Metric: lexical")
         args.no_response_indicators = '[no response]'
-        args.metrics = 'char_count,word_count,typo_count'
+        args.metrics = 'char_count,word_count,contract_count,typo_count'
+        args.contraction_file_path = "/shared/0/projects/research-jam-summer-2024/data/contractions_dict.json"
         bss = BasicSyntacticStatistics(args)
-        #human metrics
+        # human metrics
         human = bss.get_counts(data['human_turn_3'])
         human['p_typo'] = human['typo_count'] / human['word_count']
-        #llm metrics
+        # llm metrics
         llm = bss.get_counts(data['llm_turn_3'])
         llm['p_typo'] = llm['typo_count'] / llm['word_count']
-        #comparison
+
+        # comparison num words
         words = log(llm['word_count']) - log(human['word_count'])
+        data.insert(len(data.columns), "human_log_word_count", log(human['word_count']))
+        data.insert(len(data.columns), "llm_log_word_count", log(llm['word_count']))
         data.insert(len(data.columns), "metric_log_word_count", words)
+
+        # comparison num words
+        human['word_length'] = human['char_count'] / human['word_count'] - 1
+        llm['word_length'] = llm['char_count'] / llm['word_count'] - 1
+        word_length = llm['word_length'] - human['word_length']
+        data.insert(len(data.columns), "human_word_length", log(human['word_length']))
+        data.insert(len(data.columns), "llm_word_length", log(llm['word_length']))
+        data.insert(len(data.columns), "metric_word_length", word_length)
+
+        # comparison contractions
+        contract_count = llm['contract_count'] - human['contract_count']
+        data.insert(len(data.columns), "human_contract_count", human['contract_count'])
+        data.insert(len(data.columns), "llm_contract_count", llm['contract_count'])
+        data.insert(len(data.columns), "metric_contract_count", contract_count)
+
+        # comparison typo
         typo = llm['p_typo'] - human['p_typo']
         data.insert(len(data.columns), "human_typo", human['p_typo'])
         data.insert(len(data.columns), "llm_typo", llm['p_typo'])
@@ -406,13 +426,12 @@ if __name__ == '__main__':
     if 'all' in metrics or 'semantic' in metrics:
         print("Metric: semantic")
         args.no_response_indicators = '[no response]'
-        #args.metrics = 'bleu,rogue,luar_similarity'
-        args.metrics = 'bleu,rogue'
+        args.metrics = 'bleu,rouge,luar_similarity'
+        #args.metrics = 'bleu,rouge'
         bss = BasicSyntacticStatistics(args)
         df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
-        # rouge = 1 - jensenshannon(np.array([(p, 1-p) for p in human['p_grammar'].apply(jitter_prob)]),
-        #                           np.array([(p, 1-p) for p in llm['p_grammar'].apply(jitter_prob)]), axis=1)
-        data = pd.concat([data, df_metrics], axis=1)
+        data.insert(len(data.columns), "metric_rouge", df_metrics['rouge-l'])
+        data.insert(len(data.columns), "metric_bleu", df_metrics['bleu'])
     
     if 'all' in metrics or 'liwc' in metrics:
         print("Metric: liwc")
@@ -468,10 +487,10 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'perplexity' in metrics:
         print("Metric: perplexity")
-        human_perplexity, llm_perplexity, perplexity_data = perplexity(data['human_turn_3'], data['llm_turn_3'])
+        human_perplexity, llm_perplexity, perplexity = perplexity(list(data['human_turn_3']), list(data['llm_turn_3']))
         data.insert(len(data.columns), "human_perplexity", human_perplexity)
         data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
-        data.insert(len(data.columns), "metric_perplexity", perplexity_data)
+        data.insert(len(data.columns), "metric_perplexity", perplexity)
 
     if 'all' in metrics or 'factuality' in metrics:
         print("Metric: factuality")
@@ -489,7 +508,7 @@ if __name__ == '__main__':
         print("Metric: readability")
         # note that the function returns also nan values!
         human = readability_single_column(data['human_turn_3'])
-        llm = readability_single_column(data['llm_turn_3']) 
+        llm = readability_single_column(data['llm_turn_3'])
         comp = llm - human
         data.insert(len(data.columns), "human_readability", human)
         data.insert(len(data.columns), "llm_readability", llm)

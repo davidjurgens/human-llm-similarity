@@ -55,7 +55,7 @@ def pos_tag_metric(human_list, llm_list=None):
             sim = 1
         pos_jsd.append(sim)
 
-    return pos_jsd
+    return human_pos, llm_pos, pos_jsd
 
 
 if __name__ == "__main__":

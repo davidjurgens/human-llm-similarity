@@ -21,15 +21,8 @@ def capitalization(df, human_col, ai_col):
     human_rates = df[human_col].apply(capital_rate)
     ai_rates = df[ai_col].apply(capital_rate)
 
-    # standardize human and ai rates based on human rates
-    human_mean = human_rates.mean()
-    human_std = human_rates.std()
-
-    standard_human = (human_rates - human_mean) / human_std
-    standard_ai = (ai_rates - human_mean) / human_std
-
     # calculate similarity LLM - human
-    return standard_ai - standard_human
+    return human_rates, ai_rates, ai_rates - human_rates
 
 
 def punctuation(df, human_col, ai_col=None):
@@ -63,7 +56,8 @@ def punctuation(df, human_col, ai_col=None):
 
     outputs = []
     
-    # calculate 1 - JSD for all examples
+    # calculate MSE for all examples
     for i in df.index:
-        outputs.append(1 - jensenshannon(human_distributions[i], ai_distributions[i]))
-    return outputs
+        outputs.append(np.sqrt(np.mean((np.array(list(human_distributions[i].values())) -
+                                        np.array(list(ai_distributions[i].values()))) ** 2)))
+    return human_distributions, ai_distributions, outputs
