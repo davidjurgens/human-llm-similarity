@@ -21,15 +21,8 @@ def capitalization(df, human_col, ai_col):
     human_rates = df[human_col].apply(capital_rate)
     ai_rates = df[ai_col].apply(capital_rate)
 
-    # standardize human and ai rates based on human rates
-    human_mean = human_rates.mean()
-    human_std = human_rates.std()
-
-    standard_human = (human_rates - human_mean) / human_std
-    standard_ai = (ai_rates - human_mean) / human_std
-
     # calculate similarity LLM - human
-    return standard_human, standard_ai, standard_ai - standard_human
+    return human_rates, ai_rates, ai_rates - human_rates
 
 
 def punctuation(df, human_col, ai_col):
