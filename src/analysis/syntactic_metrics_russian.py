@@ -174,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--input_folder',
         help='Path to input conversations.',
-        default="/shared/0/projects/research-jam-summer-2024/data/english_only/prompting_results_clean/",
+        default="/shared/0/projects/research-jam-summer-2024/data/russian_only/",
         type=str
     )
     parser.add_argument(
