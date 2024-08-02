@@ -62,7 +62,7 @@ def const_parse_metric(human_list, llm_list):
             dist = 1
         pos_jsd.append(dist)
 
-    return pos_jsd
+    return human_pos, llm_pos, pos_jsd
 
 if __name__ == "__main__":
     mod_dir = '/shared/0/projects/research-jam-summer-2024/data/english_only/prompting_results_clean/'
@@ -84,8 +84,8 @@ if __name__ == "__main__":
 
     print("Length of file: ", len(data))
 
-    const_parse_jsd = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
-    print(const_parse_jsd)
+    const_parse_human, const_parse_llm, const_parse_jsd = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
+    #print(const_parse_jsd)
     # data['CONST_PARSE_JSD'] = pos_jsd
 
     # data.to_csv("pos_results_"+fname.split(".")[0] + ".csv")

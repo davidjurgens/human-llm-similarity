@@ -9,6 +9,7 @@ from tqdm import tqdm
 from scipy.spatial.distance import jensenshannon
 from numpy import log
 import re
+import lmppl
 
 from analysis.pos_tags_JSD import pos_tag_metric
 from analysis.liwc_dist_extractor import LiwcDistExtractor
@@ -111,6 +112,14 @@ def politeness(human, llm):
 
     # Now all of the prompts
     return human_politeness, llm_politeness, np.array(llm_politeness) - np.array(human_politeness)#1 - jensenshannon(human_politeness, llm_politeness, axis=1)#(np.array(human_politeness) - np.array(llm_politeness)).abs()
+
+def perplexity(human, llm):
+    scorer = lmppl.LM('gpt2')
+    human_perplexity = scorer.get_perplexity(human)
+    llm_perplexity = scorer.get_perplexity(llm)
+    
+    # Now all of the prompts
+    return human_perplexity, llm_perplexity, np.array(llm_perplexity) - np.array(human_perplexity)
 
 
 def toxicity(human, llm):
@@ -324,6 +333,13 @@ if __name__ == '__main__':
         data.insert(len(data.columns), "llm_subjectivity", llm_subject)
         data.insert(len(data.columns), "metric_subjectivity", subjectivity)
 
+    if 'all' in metrics or 'perplexity' in metrics:
+        print("Metric: perplexity")
+        human_perplexity, llm_perplexity, perplexity = subjectivity(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_perplexity", human_perplexity)
+        data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
+        data.insert(len(data.columns), "metric_perplexity", perplexity)
+
     if 'all' in metrics or 'factuality' in metrics:
         print("Metric: factuality")
         fact = get_align_score(data['human_turn_3'], data['llm_turn_3'])
@@ -331,7 +347,9 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'constituency' in metrics:
         print("Metric: constituency")
-        constituency = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
+        human_constituency, llm_constituency, constituency = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_constituency_parse", human_constituency)
+        data.insert(len(data.columns), "llm_constituency_parse", llm_constituency)
         data.insert(len(data.columns), "metric_constituency_parse", constituency)
 
     if 'all' in metrics or 'readability' in metrics:
