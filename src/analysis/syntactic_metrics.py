@@ -262,6 +262,8 @@ def main(args):
 
     try:
         for input_file_name in os.listdir(input_folder):
+            if not input_file_name.endswith('.jsonl'):
+                continue
             print(input_file_name)
             start = time.time()
             input_path = os.path.join(input_folder, input_file_name)
