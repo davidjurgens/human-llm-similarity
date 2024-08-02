@@ -1,0 +1,124 @@
+import os
+import argparse
+import torch
+import random
+import numpy as np
+import pandas as pd
+from transformers import pipeline
+from tqdm import tqdm
+from scipy.spatial.distance import jensenshannon
+from numpy import log
+import re
+import lmppl
+from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
+
+def enforce_reproducibility(seed=1000):
+    # Sets seed manually for both CPU and CUDA
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # For atomic operations there is currently
+    # no simple way to enforce determinism, as
+    # the order of parallel operations is not known.
+    # CUDNN
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # System based
+    random.seed(seed)
+    np.random.seed(seed)
+
+
+def load_hf_model(model_name, use_pipeline=True):
+    cache_dir = None
+    if 'HF_MODEL_CACHE' in os.environ:
+        cache_dir = os.environ['HF_MODEL_CACHE']
+    if use_pipeline:
+        pipe = pipeline("text-classification", model=model_name, model_kwargs={"cache_dir": cache_dir},
+                        device_map='mps', max_length=512, truncation=True, return_all_scores=True)
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir=cache_dir).to("mps")
+        tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
+        pipe = model, tokenizer
+    return pipe
+
+
+
+def hf_data(data, max_char_len=2000):
+    for row in data:
+        yield row[:max_char_len]
+
+
+def run_hf_model(data, model_name, column_name, use_pipeline=True):
+    pipe = load_hf_model(model_name, use_pipeline)
+
+    def predict(text):
+        model, tokenizer = pipe
+        inputs = tokenizer(text, return_tensors='pt', truncation=True, max_length=512).to("mps")
+        outputs = model(**inputs)
+        predicted = torch.nn.functional.softmax(outputs.logits, dim=1)
+        # Convert to format
+        labels = ['neutral', 'positive', 'negative']
+        return [{'label': labels[i], 'score': predicted[0][i].item()} for i in range(3)]
+    
+    new_data = []
+    if use_pipeline:
+        for out in tqdm(pipe(hf_data(data), batch_size=4), total=len(data)):
+            new_data.append([s for s in out])
+    else:
+        for out in tqdm(hf_data(data), total=len(data)):
+            new_data.append(predict(out))
+    return new_data
+
+def sentiment(human, llm):
+    def convert_to_scalar(data):
+        score_map = {
+            'negative': 0,
+            'neutral': 0.5,
+            'positive': 1,
+        }
+        out_data = []
+        for d in data:
+            out_data.append(sum([score_map[s['label']]*s['score'] for s in d]))
+        return out_data
+
+    human_sentiment = convert_to_scalar(run_hf_model(human, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment', use_pipeline=True))
+    llm_sentiment = convert_to_scalar(run_hf_model(llm, "lxyuan/distilbert-base-multilingual-cased-sentiments-student", 'sentiment', use_pipeline=True))
+
+    return human_sentiment, llm_sentiment, np.array(llm_sentiment) - np.array(human_sentiment)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data",
+                        required=False)
+    parser.add_argument("--output_path", type=str, help="Name of the file to save the generated text",
+                        required=False)
+    parser.add_argument("--metrics", type=str, default='sentiment', help="Comma separated list of the metrics you want to run, or 'all' to run all")
+    parser.add_argument("--seed", type=int, help="Random seed",
+                        default=1000)
+
+    args = parser.parse_args()
+
+    enforce_reproducibility(args.seed)
+
+    input_path = args.input_path
+    output_path = args.output_path
+    metrics = args.metrics.split(",")
+
+    input_path = "data/llama-3.1-8B-smaller.jsonl"
+
+    # to get each dataframe
+    data = pd.read_json(input_path, orient='records', lines=True)
+
+    if 'prompt' not in data.columns:
+        vals = [c for c in data.columns if c.startswith('Prompt_')]
+        ids = [c for c in data.columns if c not in vals]
+        data = pd.melt(data, id_vars=ids, value_vars=vals, var_name='prompt', value_name='llm_turn_3')
+        data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
+
+    if 'all' in metrics or 'sentiment' in metrics:
+        print("Metric: sentiment")
+        human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_3'], data['llm_turn_3'])
+        data.insert(len(data.columns), "human_sentiment", human_sent)
+        data.insert(len(data.columns), "llm_sentiment", llm_sent)
+        data.insert(len(data.columns), "metric_sentiment", sentiment_data)
+
+    a = 1
