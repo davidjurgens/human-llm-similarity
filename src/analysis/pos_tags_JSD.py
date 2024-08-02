@@ -39,8 +39,10 @@ def POS_tags(input_list):
         output_list.append(pos_count)
     return output_list
 
-def pos_tag_metric(human_list, llm_list):
+def pos_tag_metric(human_list, llm_list=None):
     human_pos = POS_tags(human_list)
+    if llm_list is None:
+        return human_pos
     llm_pos = POS_tags(llm_list)
     pos_jsd = []
 

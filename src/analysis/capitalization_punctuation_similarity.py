@@ -32,7 +32,7 @@ def capitalization(df, human_col, ai_col):
     return standard_ai - standard_human
 
 
-def punctuation(df, human_col, ai_col):
+def punctuation(df, human_col, ai_col=None):
 
     def punctuation_rate(text):
 
@@ -51,10 +51,14 @@ def punctuation(df, human_col, ai_col):
         # divide counts by length of string to get rate
         punctuation_counts = {punct: count / len(text) for punct, count in punctuation_counts.items()}
 
-        return np.array(list(punctuation_counts.values()))
+        return punctuation_counts
     
     # calculate punctuation distributions for human and ai
     human_distributions = df[human_col].apply(punctuation_rate)
+    
+    if ai_col is None:
+        return human_distributions
+        
     ai_distributions = df[ai_col].apply(punctuation_rate)
 
     outputs = []

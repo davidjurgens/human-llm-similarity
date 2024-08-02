@@ -19,7 +19,7 @@ def preprocess_text(text):
 ## return a dict with the number of pos tags normalised by length of the turn (a probability distrubution)
 def parse_tree(input_list):
     output_list = []
-    parser = benepar.Parser("benepar_en2")
+    parser = benepar.Parser("benepar_en3")
     for text in tqdm(input_list):
         const_count = {
             "ADJP":0, "-ADV":0, "ADVP":0, "-BNF":0, "CC": 0, "CD": 0, "-CLF": 0, "-CLR": 0,
@@ -48,8 +48,10 @@ def parse_tree(input_list):
         output_list.append(const_count)
     return output_list
 
-def const_parse_metric(human_list, llm_list):
+def const_parse_metric(human_list, llm_list=None):
     human_pos = parse_tree(human_list)
+    if llm_list is None:
+        return human_pos
     llm_pos = parse_tree(llm_list)
     pos_jsd = []
 

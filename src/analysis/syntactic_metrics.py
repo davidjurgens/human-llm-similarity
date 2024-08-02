@@ -45,7 +45,7 @@ class BasicSyntacticStatistics:
             )
         if 'luar_similarity' in self.metric_list:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            torch.cuda.set_device(2)
+            torch.cuda.set_device(0)
             self.luar_tokenizer = AutoTokenizer.from_pretrained('rrivera1849/LUAR-CRUD')
             self.luar_embedder = AutoModel.from_pretrained('rrivera1849/LUAR-CRUD', trust_remote_code=True).to(self.device)
             
