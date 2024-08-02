@@ -29,7 +29,7 @@ def capitalization(df, human_col, ai_col):
     standard_ai = (ai_rates - human_mean) / human_std
 
     # calculate similarity LLM - human
-    return standard_ai - standard_human
+    return standard_human, standard_ai, standard_ai - standard_human
 
 
 def punctuation(df, human_col, ai_col):
@@ -64,4 +64,3 @@ def punctuation(df, human_col, ai_col):
         outputs.append(np.sqrt(np.mean((np.array(list(human_distributions[i].values())) -
                                         np.array(list(ai_distributions[i].values()))) ** 2)))
     return human_distributions, ai_distributions, outputs
-    
