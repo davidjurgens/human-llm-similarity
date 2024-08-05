@@ -12,15 +12,15 @@ import re
 import lmppl
 from argparse import Namespace
 
-from pos_tags_JSD import pos_tag_metric
-from liwc_dist_extractor import LiwcDistExtractor
-from embedding_similarity import EmbeddingSimilarity
-from capitalization_punctuation_similarity import capitalization, punctuation
-from syntactic_metrics import BasicSyntacticStatistics
-# from subjectivity import SubjectivityAnalyzer
-#from analysis.factuality_eval import get_align_score
-# from constituency_parse import const_parse_metric
-from readability_score import get_flesch_readability, readability_single_column
+from analysis.pos_tags_JSD import pos_tag_metric
+from analysis.liwc_dist_extractor import LiwcDistExtractor
+from analysis.embedding_similarity import EmbeddingSimilarity
+from analysis.capitalization_punctuation_similarity import capitalization, punctuation
+from analysis.syntactic_metrics import BasicSyntacticStatistics
+# from analysis.subjectivity import SubjectivityAnalyzer
+# from analysis.factuality_eval import get_align_score
+# from analysis.constituency_parse import const_parse_metric
+from analysis.readability_score import get_flesch_readability, readability_single_column
 
 
 def enforce_reproducibility(seed=1000):
@@ -189,7 +189,7 @@ def is_no_response(col, no_response_indicator = '[no response]'):
     return (cond).apply(lambda x: 1 if x else 0)
 
 
-def compute_single_col_metric_list(data, turn_name, metrics, output_folder):
+def compute_single_col_metric_list(data, turn_name, metrics, output_folder, data_file_name):
     if 'all' in metrics:
         metrics = [
             'lexical', 'perplexity',
@@ -198,8 +198,11 @@ def compute_single_col_metric_list(data, turn_name, metrics, output_folder):
             'topic', 'sentiment', 'politeness', 'formality',
             'toxicity', 'readability', 'subjectivity', 'luar'
         ]
+    
+    os.makedirs(output_folder, exist_ok=True)
+    
     for metric in metrics:
-        output_path = output_folder
+        output_path = os.path.join(output_folder, f'{data_file_name}_{turn_name}_{metric}.json')
         compute_single_col_metric(data, turn_name, metric, output_path)
 
 def compute_single_col_metric(data, turn_name, metric, output_path):
@@ -302,8 +305,9 @@ def compute_single_col_metric(data, turn_name, metric, output_path):
         df_metric = readability_single_column(data[turn_name])
         df_metric = pd.DataFrame(df_metric, columns=['readability'], index=data.index)
     elif metric == 'subjectivity':
-        print("Metric: subjectivity") # not checked yet
+        print("Metric: subjectivity") # 1 col
         df_metric = subjectivity(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, columns=['subjectivity'], index=data.index)
     elif metric == 'luar':
         print("Metric: luar") # 512 cols, gpu
         args = Namespace()
@@ -314,12 +318,18 @@ def compute_single_col_metric(data, turn_name, metric, output_path):
         embeddings = bss.get_luar_embeddings(data[turn_name])
         df_metric = pd.DataFrame(embeddings.numpy(), index=data.index)
     
-    return df_metric
-#     df_metric.to_json(output_path, orient='records', lines=True)
+    df_metric.to_json(output_path, orient='records', lines=True)
 
-# def compute_pairwise_metrics(data, turn_name_1, turn_name_2, metrics):
+def compute_pairwise_metric(data, turn_name_1, turn_name_2, metric, output_path):
+    if metric == 'semantic':
+        args = Namespace()
+        args.no_response_indicators = '[no response]'
+        args.metrics = 'bleu,rouge'
+        
+        bss = BasicSyntacticStatistics(args)
+        df_metric = bss.get_metrics(data[turn_name_1], data[turn_name_2])
     
-#     dataframe.save()
+    return df_metric
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -454,8 +464,8 @@ if __name__ == '__main__':
     if 'all' in metrics or 'semantic' in metrics:
         print("Metric: semantic")
         args.no_response_indicators = '[no response]'
-        args.metrics = 'bleu,rouge,luar_similarity'
-        #args.metrics = 'bleu,rouge'
+#         args.metrics = 'bleu,rouge,luar_similarity'
+        args.metrics = 'bleu,rouge'
         bss = BasicSyntacticStatistics(args)
         df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_rouge", df_metrics['rouge-l'])
