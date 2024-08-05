@@ -1,7 +1,7 @@
-from readability import Readability
+#from readability import Readability
 from os.path import join as opj
 import pandas as pd
-from readability.exceptions import ReadabilityException
+#from readability.exceptions import ReadabilityException
 from tqdm import tqdm
 import multiprocessing as mp
 import textstat

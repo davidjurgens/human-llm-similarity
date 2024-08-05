@@ -476,8 +476,8 @@ if __name__ == '__main__':
     if 'all' in metrics or 'semantic' in metrics:
         print("Metric: semantic")
         args.no_response_indicators = '[no response]'
-#         args.metrics = 'bleu,rouge,luar_similarity'
-        args.metrics = 'bleu,rouge'
+        args.metrics = 'bleu,rouge,luar_similarity'
+        #args.metrics = 'bleu,rouge'
         bss = BasicSyntacticStatistics(args)
         df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_rouge", df_metrics['rouge-l'])
