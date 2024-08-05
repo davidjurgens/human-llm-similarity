@@ -15,7 +15,7 @@ from rouge_metric import PyRouge
 import torch
 import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
-#import contractions
+# import contractions
 
 
 class BasicSyntacticStatistics:
@@ -33,7 +33,9 @@ class BasicSyntacticStatistics:
 
         if 'contract_count' in self.metric_list:
             with open(args.contraction_file_path) as input_file:
-                self.contractions_dict = json.load(input_file)#contractions.contractions_dict #
+                #self.contractions_dict = json.load(input_file)
+                self.contractions_dict = json.load(open('/shared/0/projects/research-jam-summer-2024/data/contractions_dict.json', 'r'))
+#             self.contractions_dict = contractions.contractions_dict
         if 'typo_count' in self.metric_list:
             self.spell_checker = SpellChecker()
         if 'grammar_error_count' in self.metric_list:
@@ -311,7 +313,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--contraction_file_path',
         help='Path to the file with the list of contractions.',
-        default="/home/kimjhj/projects/research-jam-summer-2024/human-llm-similarity/src/analysis/punctuation_list.json",
+        default="/shared/0/projects/research-jam-summer-2024/data/contractions_dict.json",
         type=str
     )
     parser.add_argument(

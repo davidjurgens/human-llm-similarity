@@ -29,11 +29,11 @@ def punctuation(df, human_col, ai_col=None):
 
     def punctuation_rate(text):
 
-        if len(text) < 1:
-            return np.nan
-
         # create a dictionary of all punctuation marks to store counts
         punctuation_counts = {punct: 0 for punct in string.punctuation}
+        
+        if len(text) < 1:
+            return punctuation_counts
 
         # iterate over each character
         for char in text:
