@@ -372,9 +372,11 @@ if __name__ == '__main__':
         # human metrics
         human = bss.get_counts(data['human_turn_3'])
         human['p_typo'] = human['typo_count'] / human['word_count']
+        human['p_contract'] = human['contract_count'] / human['word_count']
         # llm metrics
         llm = bss.get_counts(data['llm_turn_3'])
         llm['p_typo'] = llm['typo_count'] / llm['word_count']
+        llm['p_contract'] = llm['contract_count'] / llm['word_count']
 
         # comparison num words
         words = log(llm['word_count']) - log(human['word_count'])
@@ -391,9 +393,9 @@ if __name__ == '__main__':
         data.insert(len(data.columns), "metric_word_length", word_length)
 
         # comparison contractions
-        contract_count = llm['contract_count'] - human['contract_count']
-        data.insert(len(data.columns), "human_contract_count", human['contract_count'])
-        data.insert(len(data.columns), "llm_contract_count", llm['contract_count'])
+        contract_count = llm['p_contract'] - human['p_contract']
+        data.insert(len(data.columns), "human_contract_count", human['p_contract'])
+        data.insert(len(data.columns), "llm_contract_count", llm['p_contract'])
         data.insert(len(data.columns), "metric_contract_count", contract_count)
 
         # comparison typo
