@@ -167,7 +167,7 @@ def subjectivity(human, llm=None):
         return human_subjectivity
     llm_subjectivity = SubjectivityAnalyzer().get_subjectivity_scores(llm)
     
-    return human_subjectivity, llm_subjectivity, 1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
+    return human_subjectivity, llm_subjectivity, np.array(llm_subjectivity) - np.array(human_subjectivity)#1 - jensenshannon(human_subjectivity, llm_subjectivity, axis=1)
 
 def topic(human, llm=None):
     human_topic = [[s['score'] for s in d] for d in run_hf_model(human, "valpy/prompt-classification", 'topic')]
@@ -202,94 +202,94 @@ def compute_single_col_metric_list(data, turn_name, metrics, output_folder):
         output_path = output_folder
         compute_single_col_metric(data, turn_name, metric, output_path)
 
-def compute_single_col_metric(data, turn_name, metric, output_path):
-    match metric:
-        case 'lexical':
-            # count utterance length (log word count), avg. word length
-            print("Metric: lexical - log word count, avg. word length, capitalization, contraction, typo")
-            args = Namespace()
-            args.no_response_indicators = '[no response]'
-            args.metrics = 'char_count,word_count,upper_count,lower_count,contract_count,typo_count'
-            
-            bss = BasicSyntacticStatistics(args)
-            df_metric = bss.get_counts(data[turn_name])
-            
-            df_metric['log_word_count'] = log(df_metric['word_count'])
-            df_metric['avg_word_length'] = df_metric['char_count'] / metric['word_count']
-            df_metric['proportion_capital_over_alpha'] = df_metric['upper_count'] / (metric['upper_count'] + metric['lower_count'])
-            df_metric['proportion_contraction_over_word'] = df_metric['contract_count'] / metric['word_count']
-            df_metric['proportion_typo_over_word'] = df_metric['typo_count'] / metric['word_count']
-            df_metric.fillna(
-                value={
-                    'avg_word_length': 0, 'proportion_capital_over_alpha': 0,
-                    'proportion_contraction_over_word': 0,
-                    'proportion_typo_over_word': 0
-                },
-                inplace=True
-            )
-            df_metric = df_metric[[
-                'log_word_count', 'avg_word_length',
-                'proportion_capital_over_alpha', 'proportion_contraction_over_word',
-                'proportion_typo_over_word'
-            ]]
-        case 'perplexity':
-            print("Metric: perplexity") # not checked yet
-            df_metric = perplexity(data[turn_name])
-        case 'punctuation':
-            print("Metric: punctuation")
-            df_metric = punctuation(data, turn_name)
-            df_metric = pd.DataFrame(list(df_metric), index=df_temp.index)
-        case 'pos':
-            print("Metric: pos")
-            df_metric = pos_tag_metric(data[turn_name])
-            df_metric = pd.DataFrame(df_metric, index=data.index)
-        case 'constituency':
-            print("Metric: constituency")
-            df_metric = const_parse_metric(data[turn_name])
-            df_metric = pd.DataFrame(df_metric, index=data.index)
-        case 'sbert':
-            print("Metric: sbert")
-            embedding_similarity = EmbeddingSimilarity()
-            embeddings = embedding_similarity.get_embeddings(list(data[turn_name]))
-            df_metric = pd.DataFrame(embeddings, index=data.index)
-        case 'liwc':
-            print("Metric: liwc")
-            liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
-            liwc_dist = liwc_extractor_obj.extract_liwc_occurrences(data[turn_name].to_list())
-            df_metric = pd.DataFrame(liwc_dist, index=data.index)
-        case 'topic':
-            print("Metric: topic")
-            df_metric = topic(data[turn_name])
-        case 'sentiment':
-            print("Metric: sentiment")
-            df_metric = sentiment(data[turn_name])
-        case 'politeness':
-            print("Metric: politeness")
-            df_metric = politeness(data[turn_name])
-        case 'formality':
-            print("Metric: formality")
-            df_metric = formality(data[turn_name])
-        case 'toxicity':
-            print("Metric: toxicity")
-            df_metric = toxicity(data[turn_name])
-        case 'readability':
-            print("Metric: readability")
-            # note that the function returns also nan values!
-            df_metric = readability_single_column(data[turn_name])
-        case 'subjectivity':
-            print("Metric: subjectivity")
-            df_metric = subjectivity(data[turn_name])
-        case 'luar':
-            print("Metric: luar")
-            args = Namespace()
-            args.no_response_indicators = '[no response]'
-            args.metrics = 'luar_similarity'
-            
-            bss = BasicSyntacticStatistics(args)
-            embeddings = bss.get_luar_embeddings(data[turn_name])
-            df_metric = pd.DataFrame(embeddings.numpy(), index=data.index)
-
-    df_metric.to_json(output_path, orient='records', lines=True)
+# def compute_single_col_metric(data, turn_name, metric, output_path):
+#     match metric:
+#         case 'lexical':
+#             # count utterance length (log word count), avg. word length
+#             print("Metric: lexical - log word count, avg. word length, capitalization, contraction, typo")
+#             args = Namespace()
+#             args.no_response_indicators = '[no response]'
+#             args.metrics = 'char_count,word_count,upper_count,lower_count,contract_count,typo_count'
+#
+#             bss = BasicSyntacticStatistics(args)
+#             df_metric = bss.get_counts(data[turn_name])
+#
+#             df_metric['log_word_count'] = log(df_metric['word_count'])
+#             df_metric['avg_word_length'] = df_metric['char_count'] / metric['word_count']
+#             df_metric['proportion_capital_over_alpha'] = df_metric['upper_count'] / (metric['upper_count'] + metric['lower_count'])
+#             df_metric['proportion_contraction_over_word'] = df_metric['contract_count'] / metric['word_count']
+#             df_metric['proportion_typo_over_word'] = df_metric['typo_count'] / metric['word_count']
+#             df_metric.fillna(
+#                 value={
+#                     'avg_word_length': 0, 'proportion_capital_over_alpha': 0,
+#                     'proportion_contraction_over_word': 0,
+#                     'proportion_typo_over_word': 0
+#                 },
+#                 inplace=True
+#             )
+#             df_metric = df_metric[[
+#                 'log_word_count', 'avg_word_length',
+#                 'proportion_capital_over_alpha', 'proportion_contraction_over_word',
+#                 'proportion_typo_over_word'
+#             ]]
+#         case 'perplexity':
+#             print("Metric: perplexity") # not checked yet
+#             df_metric = perplexity(data[turn_name])
+#         case 'punctuation':
+#             print("Metric: punctuation")
+#             df_metric = punctuation(data, turn_name)
+#             df_metric = pd.DataFrame(list(df_metric), index=df_temp.index)
+#         case 'pos':
+#             print("Metric: pos")
+#             df_metric = pos_tag_metric(data[turn_name])
+#             df_metric = pd.DataFrame(df_metric, index=data.index)
+#         case 'constituency':
+#             print("Metric: constituency")
+#             df_metric = const_parse_metric(data[turn_name])
+#             df_metric = pd.DataFrame(df_metric, index=data.index)
+#         case 'sbert':
+#             print("Metric: sbert")
+#             embedding_similarity = EmbeddingSimilarity()
+#             embeddings = embedding_similarity.get_embeddings(list(data[turn_name]))
+#             df_metric = pd.DataFrame(embeddings, index=data.index)
+#         case 'liwc':
+#             print("Metric: liwc")
+#             liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
+#             liwc_dist = liwc_extractor_obj.extract_liwc_occurrences(data[turn_name].to_list())
+#             df_metric = pd.DataFrame(liwc_dist, index=data.index)
+#         case 'topic':
+#             print("Metric: topic")
+#             df_metric = topic(data[turn_name])
+#         case 'sentiment':
+#             print("Metric: sentiment")
+#             df_metric = sentiment(data[turn_name])
+#         case 'politeness':
+#             print("Metric: politeness")
+#             df_metric = politeness(data[turn_name])
+#         case 'formality':
+#             print("Metric: formality")
+#             df_metric = formality(data[turn_name])
+#         case 'toxicity':
+#             print("Metric: toxicity")
+#             df_metric = toxicity(data[turn_name])
+#         case 'readability':
+#             print("Metric: readability")
+#             # note that the function returns also nan values!
+#             df_metric = readability_single_column(data[turn_name])
+#         case 'subjectivity':
+#             print("Metric: subjectivity")
+#             df_metric = subjectivity(data[turn_name])
+#         case 'luar':
+#             print("Metric: luar")
+#             args = Namespace()
+#             args.no_response_indicators = '[no response]'
+#             args.metrics = 'luar_similarity'
+#
+#             bss = BasicSyntacticStatistics(args)
+#             embeddings = bss.get_luar_embeddings(data[turn_name])
+#             df_metric = pd.DataFrame(embeddings.numpy(), index=data.index)
+#
+#     df_metric.to_json(output_path, orient='records', lines=True)
 
 # def compute_pairwise_metrics(data, turn_name_1, turn_name_2, metrics):
     
@@ -432,6 +432,7 @@ if __name__ == '__main__':
         df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_rouge", df_metrics['rouge-l'])
         data.insert(len(data.columns), "metric_bleu", df_metrics['bleu'])
+        data.insert(len(data.columns), "metric_luar", df_metrics['luar_similarity'])
     
     if 'all' in metrics or 'liwc' in metrics:
         print("Metric: liwc")
@@ -480,7 +481,8 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'subjectivity' in metrics:
         print("Metric: subjectivity")
-        human_subject, llm_subject, subjectivity_data = subjectivity(data['human_turn_3'], data['llm_turn_3'])
+        from analysis.subjectivity import SubjectivityAnalyzer
+        human_subject, llm_subject, subjectivity_data = subjectivity(list(data['human_turn_3']), list(data['llm_turn_3']))
         data.insert(len(data.columns), "human_subjectivity", human_subject)
         data.insert(len(data.columns), "llm_subjectivity", llm_subject)
         data.insert(len(data.columns), "metric_subjectivity", subjectivity_data)
@@ -494,12 +496,14 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'factuality' in metrics:
         print("Metric: factuality")
+        from analysis.factuality_eval import get_align_score
         fact = get_align_score(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "metric_factuality", fact)
 
     if 'all' in metrics or 'constituency' in metrics:
         print("Metric: constituency")
-        human_constituency, llm_constituency, constituency = const_parse_metric(data['human_turn_3'], data['llm_turn_3'])
+        from analysis.constituency_parse import const_parse_metric
+        human_constituency, llm_constituency, constituency = const_parse_metric(list(data['human_turn_3']), list(data['llm_turn_3']))
         data.insert(len(data.columns), "human_constituency_parse", human_constituency)
         data.insert(len(data.columns), "llm_constituency_parse", llm_constituency)
         data.insert(len(data.columns), "metric_constituency_parse", constituency)
@@ -507,8 +511,8 @@ if __name__ == '__main__':
     if 'all' in metrics or 'readability' in metrics:
         print("Metric: readability")
         # note that the function returns also nan values!
-        human = readability_single_column(data['human_turn_3'])
-        llm = readability_single_column(data['llm_turn_3'])
+        human = readability_single_column(list(data['human_turn_3']))
+        llm = readability_single_column(list(data['llm_turn_3']))
         comp = llm - human
         data.insert(len(data.columns), "human_readability", human)
         data.insert(len(data.columns), "llm_readability", llm)

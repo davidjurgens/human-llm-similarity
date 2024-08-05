@@ -125,7 +125,7 @@ class BasicSyntacticStatistics:
             return {}
 
     def get_luar_embeddings(self, text_series: Series) -> torch.Tensor:
-        batch_size = 32
+        batch_size = 8
         num_batches = (len(text_series) - 1) // batch_size + 1
 
         embeddings = []
