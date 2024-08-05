@@ -33,7 +33,8 @@ class BasicSyntacticStatistics:
 
         if 'contract_count' in self.metric_list:
             with open(args.contraction_file_path) as input_file:
-                self.contractions_dict = json.load(input_file)
+                #self.contractions_dict = json.load(input_file)
+                self.contractions_dict = json.load(open('/shared/0/projects/research-jam-summer-2024/data/contractions_dict.json', 'r'))
 #             self.contractions_dict = contractions.contractions_dict
         if 'typo_count' in self.metric_list:
             self.spell_checker = SpellChecker()
