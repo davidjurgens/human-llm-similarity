@@ -12,15 +12,15 @@ import re
 import lmppl
 from argparse import Namespace
 
-from analysis.pos_tags_JSD import pos_tag_metric
-from analysis.liwc_dist_extractor import LiwcDistExtractor
-from analysis.embedding_similarity import EmbeddingSimilarity
-from analysis.capitalization_punctuation_similarity import capitalization, punctuation
-from analysis.syntactic_metrics import BasicSyntacticStatistics
-#from analysis.subjectivity import SubjectivityAnalyzer
+from pos_tags_JSD import pos_tag_metric
+from liwc_dist_extractor import LiwcDistExtractor
+from embedding_similarity import EmbeddingSimilarity
+from capitalization_punctuation_similarity import capitalization, punctuation
+from syntactic_metrics import BasicSyntacticStatistics
+# from subjectivity import SubjectivityAnalyzer
 #from analysis.factuality_eval import get_align_score
-#from analysis.constituency_parse import const_parse_metric
-from analysis.readability_score import get_flesch_readability, readability_single_column
+# from constituency_parse import const_parse_metric
+from readability_score import get_flesch_readability, readability_single_column
 
 
 def enforce_reproducibility(seed=1000):
@@ -133,10 +133,10 @@ def politeness(human, llm=None):
 
 def perplexity(human, llm=None):
     scorer = lmppl.LM('gpt2')
-    human_perplexity = scorer.get_perplexity(human, batch=8)
+    human_perplexity = scorer.get_perplexity(human, batch=4)
     if llm is None:
         return human_perplexity
-    llm_perplexity = scorer.get_perplexity(llm, batch=8)
+    llm_perplexity = scorer.get_perplexity(llm, batch=4)
     
     # Now all of the prompts
     return human_perplexity, llm_perplexity, np.array(llm_perplexity) - np.array(human_perplexity)
@@ -203,93 +203,119 @@ def compute_single_col_metric_list(data, turn_name, metrics, output_folder):
         compute_single_col_metric(data, turn_name, metric, output_path)
 
 def compute_single_col_metric(data, turn_name, metric, output_path):
-    match metric:
-        case 'lexical':
-            # count utterance length (log word count), avg. word length
-            print("Metric: lexical - log word count, avg. word length, capitalization, contraction, typo")
-            args = Namespace()
-            args.no_response_indicators = '[no response]'
-            args.metrics = 'char_count,word_count,upper_count,lower_count,contract_count,typo_count'
-            
-            bss = BasicSyntacticStatistics(args)
-            df_metric = bss.get_counts(data[turn_name])
-            
-            df_metric['log_word_count'] = log(df_metric['word_count'])
-            df_metric['avg_word_length'] = df_metric['char_count'] / metric['word_count']
-            df_metric['proportion_capital_over_alpha'] = df_metric['upper_count'] / (metric['upper_count'] + metric['lower_count'])
-            df_metric['proportion_contraction_over_word'] = df_metric['contract_count'] / metric['word_count']
-            df_metric['proportion_typo_over_word'] = df_metric['typo_count'] / metric['word_count']
-            df_metric.fillna(
-                value={
-                    'avg_word_length': 0, 'proportion_capital_over_alpha': 0,
-                    'proportion_contraction_over_word': 0,
-                    'proportion_typo_over_word': 0
-                },
-                inplace=True
-            )
-            df_metric = df_metric[[
-                'log_word_count', 'avg_word_length',
-                'proportion_capital_over_alpha', 'proportion_contraction_over_word',
-                'proportion_typo_over_word'
-            ]]
-        case 'perplexity':
-            print("Metric: perplexity") # not checked yet
-            df_metric = perplexity(data[turn_name])
-        case 'punctuation':
-            print("Metric: punctuation")
-            df_metric = punctuation(data, turn_name)
-            df_metric = pd.DataFrame(list(df_metric), index=df_temp.index)
-        case 'pos':
-            print("Metric: pos")
-            df_metric = pos_tag_metric(data[turn_name])
-            df_metric = pd.DataFrame(df_metric, index=data.index)
-        case 'constituency':
-            print("Metric: constituency")
-            df_metric = const_parse_metric(data[turn_name])
-            df_metric = pd.DataFrame(df_metric, index=data.index)
-        case 'sbert':
-            print("Metric: sbert")
-            embedding_similarity = EmbeddingSimilarity()
-            embeddings = embedding_similarity.get_embeddings(list(data[turn_name]))
-            df_metric = pd.DataFrame(embeddings, index=data.index)
-        case 'liwc':
-            print("Metric: liwc")
-            liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
-            liwc_dist = liwc_extractor_obj.extract_liwc_occurrences(data[turn_name].to_list())
-            df_metric = pd.DataFrame(liwc_dist, index=data.index)
-        case 'topic':
-            print("Metric: topic")
-            df_metric = topic(data[turn_name])
-        case 'sentiment':
-            print("Metric: sentiment")
-            df_metric = sentiment(data[turn_name])
-        case 'politeness':
-            print("Metric: politeness")
-            df_metric = politeness(data[turn_name])
-        case 'formality':
-            print("Metric: formality")
-            df_metric = formality(data[turn_name])
-        case 'toxicity':
-            print("Metric: toxicity")
-            df_metric = toxicity(data[turn_name])
-        case 'readability':
-            print("Metric: readability")
-            # note that the function returns also nan values!
-            df_metric = readability_single_column(data[turn_name])
-        case 'subjectivity':
-            print("Metric: subjectivity")
-            df_metric = subjectivity(data[turn_name])
-        case 'luar':
-            print("Metric: luar")
-            args = Namespace()
-            args.no_response_indicators = '[no response]'
-            args.metrics = 'luar_similarity'
-            
-            bss = BasicSyntacticStatistics(args)
-            embeddings = bss.get_luar_embeddings(data[turn_name])
-            df_metric = pd.DataFrame(embeddings.numpy(), index=data.index)
+    if metric == 'lexical':
+        # count utterance length (log word count), avg. word length
+        print("Metric: lexical - log word count, avg. word length, capitalization, contraction, typo") # 5 cols
+        args = Namespace()
+        args.contraction_file_path = '/shared/0/projects/research-jam-summer-2024/data/contractions_dict.json'
+        args.no_response_indicators = '[no response]'
+        args.metrics = 'char_count,word_count,upper_count,lower_count,contract_count,typo_count'
 
-    df_metric.to_json(output_path, orient='records', lines=True)
+        bss = BasicSyntacticStatistics(args)
+        df_metric = bss.get_counts(data[turn_name])
+
+        df_metric['log_word_count'] = log(df_metric['word_count'])
+        df_metric['avg_word_length'] = df_metric['char_count'] / df_metric['word_count']
+        df_metric['proportion_capital_over_alpha'] = df_metric['upper_count'] / (df_metric['upper_count'] + df_metric['lower_count'])
+        df_metric['proportion_contraction_over_word'] = df_metric['contract_count'] / df_metric['word_count']
+        df_metric['proportion_typo_over_word'] = df_metric['typo_count'] / df_metric['word_count']
+        df_metric.fillna(
+            value={
+                'avg_word_length': 0, 'proportion_capital_over_alpha': 0,
+                'proportion_contraction_over_word': 0,
+                'proportion_typo_over_word': 0
+            },
+            inplace=True
+        )
+        df_metric = df_metric[[
+            'log_word_count', 'avg_word_length',
+            'proportion_capital_over_alpha', 'proportion_contraction_over_word',
+            'proportion_typo_over_word'
+        ]]
+    elif metric == 'perplexity':
+        print("Metric: perplexity") # 1 col, gpu
+        df_metric = perplexity(list(data[turn_name]))
+        df_metric = pd.DataFrame(df_metric, columns=['perplexity'], index=data.index)
+    elif metric == 'punctuation':
+        print("Metric: punctuation") # 32 cols
+        df_metric = punctuation(data, turn_name)
+        df_metric = pd.DataFrame(list(df_metric), index=df_metric.index)
+        df_metric.fillna(0, inplace=True)
+    elif metric == 'pos':
+        print("Metric: pos") # 12 cols, gpu
+        df_metric = pos_tag_metric(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, index=data.index)
+    elif metric == 'constituency':
+        print("Metric: constituency") # not checked yet, gpu
+        df_metric = const_parse_metric(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, index=data.index)
+    elif metric == 'sbert':
+        print("Metric: sbert") # 384 cols, gpu
+        embedding_similarity = EmbeddingSimilarity()
+        embeddings = embedding_similarity.get_embeddings(list(data[turn_name])).detach().cpu().numpy()
+        df_metric = pd.DataFrame(embeddings, index=data.index)
+    elif metric == 'liwc':
+        print("Metric: liwc") # 69 cols
+        liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
+        liwc_dist = liwc_extractor_obj.extract_liwc_occurrences(data[turn_name].to_list())
+        df_metric = pd.DataFrame(liwc_dist, index=data.index)
+    elif metric == 'topic':
+        print("Metric: topic") # 15 cols, gpu
+        df_metric = topic(data[turn_name])
+        topic_labels = [
+            "analysis or decision explanation",
+            "assisting or creative writing",
+            "classification",
+            "coding",
+            "editing or rewriting",
+            "factual information (general or professional), history or common practices",
+            "information extraction or summarization",
+            "linguistics",
+            "logical reasoning",
+            "mathematical reasoning or calculation",
+            "multilinguality or translation",
+            "other",
+            "recommendation",
+            "roleplay",
+            "tips, opinions or advice"
+        ]
+        df_metric = pd.DataFrame(df_metric, columns=topic_labels, index=data.index)
+    elif metric == 'sentiment':
+        print("Metric: sentiment") # 1 col, gpu
+        df_metric = sentiment(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, columns=['sentiment'], index=data.index)
+    elif metric == 'politeness':
+        print("Metric: politeness") # 1 col, gpu
+        df_metric = politeness(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, columns=['politeness'], index=data.index)
+    elif metric == 'formality':
+        print("Metric: formality") # 1 col, gpu
+        df_metric = formality(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, columns=['formality'], index=data.index)
+    elif metric == 'toxicity':
+        print("Metric: toxicity") # 1 col, gpu
+        df_metric = toxicity(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, columns=['toxicity'], index=data.index)
+    elif metric == 'readability':
+        print("Metric: readability") # 1 col
+        # note that the function returns also nan values!
+        df_metric = readability_single_column(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, columns=['readability'], index=data.index)
+    elif metric == 'subjectivity':
+        print("Metric: subjectivity") # not checked yet
+        df_metric = subjectivity(data[turn_name])
+    elif metric == 'luar':
+        print("Metric: luar") # 512 cols, gpu
+        args = Namespace()
+        args.no_response_indicators = '[no response]'
+        args.metrics = 'luar_similarity'
+
+        bss = BasicSyntacticStatistics(args)
+        embeddings = bss.get_luar_embeddings(data[turn_name])
+        df_metric = pd.DataFrame(embeddings.numpy(), index=data.index)
+    
+    return df_metric
+#     df_metric.to_json(output_path, orient='records', lines=True)
 
 # def compute_pairwise_metrics(data, turn_name_1, turn_name_2, metrics):
     
