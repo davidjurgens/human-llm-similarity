@@ -320,6 +320,18 @@ def compute_single_col_metric(data, turn_name, metric, output_path):
     
     df_metric.to_json(output_path, orient='records', lines=True)
 
+def compute_pairwise_metric_list(data, turn_name_1, turn_name_2, metrics, output_folder, data_file_name):
+    if 'all' in metrics:
+        metrics = [
+            'semantic'
+        ]
+    
+    os.makedirs(output_folder, exist_ok=True)
+    
+    for metric in metrics:
+        output_path = os.path.join(output_folder, f'{data_file_name}_{turn_name_1}_{turn_name_2}_{metric}.json')
+        compute_pairwise_metric(data, turn_name_1, turn_name_2, metric, output_path)
+
 def compute_pairwise_metric(data, turn_name_1, turn_name_2, metric, output_path):
     if metric == 'semantic':
         args = Namespace()
@@ -329,7 +341,7 @@ def compute_pairwise_metric(data, turn_name_1, turn_name_2, metric, output_path)
         bss = BasicSyntacticStatistics(args)
         df_metric = bss.get_metrics(data[turn_name_1], data[turn_name_2])
     
-    return df_metric
+    df_metric.to_json(output_path, orient='records', lines=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
