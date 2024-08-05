@@ -32,9 +32,8 @@ class BasicSyntacticStatistics:
         self.no_response_indicator_list = args.no_response_indicators.split(',')
 
         if 'contract_count' in self.metric_list:
-            with open(args.contraction_file_path) as input_file:
-                #self.contractions_dict = json.load(input_file)
-                self.contractions_dict = json.load(open('/shared/0/projects/research-jam-summer-2024/data/contractions_dict.json', 'r'))
+            with open(args.contraction_file_path, 'r') as input_file:
+                self.contractions_dict = json.load(input_file)
 #             self.contractions_dict = contractions.contractions_dict
         if 'typo_count' in self.metric_list:
             self.spell_checker = SpellChecker()
@@ -93,10 +92,9 @@ class BasicSyntacticStatistics:
     def get_punctuation_count(text: str) -> int:
         return sum(1 for char in text if string.punctuation.find(char) >= 0)
 
-    @staticmethod
-    def get_contraction_count(text: str) -> int:
+    def get_contraction_count(self, text: str) -> int:
         try:
-            return sum(1 for word in text.split() if word in self.contractions_dict)
+            return sum(1 for word in text.split() if word in self.contractions_dict or word.lower() in self.contractions_dict)
         except Exception as e:
             return 0
     
@@ -187,7 +185,7 @@ class BasicSyntacticStatistics:
             df_output['punct_count'] = df_input.transform(BasicSyntacticStatistics.get_punctuation_count)
             
         if 'contract_count' in self.metric_list:
-            df_output['contract_count'] = df_input.transform(BasicSyntacticStatistics.get_contraction_count)
+            df_output['contract_count'] = df_input.transform(self.get_contraction_count)
             
         if 'typo_count' in self.metric_list:
             df_output['typo_count'] = df_input.transform(self.get_typo_count)
