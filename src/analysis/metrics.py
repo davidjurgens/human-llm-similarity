@@ -12,7 +12,7 @@ import re
 import lmppl
 from argparse import Namespace
 
-from analysis.pos_tags_JSD import pos_tag_metric
+from analysis.pos_tags_JSD import POS_tags_Dep_Spacy
 from analysis.liwc_dist_extractor import LiwcDistExtractor
 from analysis.embedding_similarity import EmbeddingSimilarity
 from analysis.capitalization_punctuation_similarity import capitalization, punctuation
@@ -246,7 +246,7 @@ def compute_single_col_metric(data, turn_name, metric, output_path):
         df_metric.fillna(0, inplace=True)
     elif metric == 'pos':
         print("Metric: pos") # 12 cols, gpu
-        df_metric = pos_tag_metric(data[turn_name])
+        df_metric = POS_tags_Dep_Spacy(data[turn_name])
         df_metric = pd.DataFrame(df_metric, index=data.index)
     elif metric == 'constituency':
         print("Metric: constituency") # not checked yet, gpu
@@ -460,10 +460,14 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'pos' in metrics:
         print("Metric: pos")
-        hum_pos, llm_pos, pos = pos_tag_metric(data['human_turn_3'], data['llm_turn_3'])
+        hum_pos, hum_dep, llm_pos, llm_dep, pos, dep = POS_tags_Dep_Spacy(data['human_turn_3'], data['llm_turn_3'])
         data.insert(len(data.columns), "human_pos", hum_pos)
         data.insert(len(data.columns), "llm_pos", llm_pos)
         data.insert(len(data.columns), "metric_pos", pos)
+
+        data.insert(len(data.columns), "human_dep", hum_pos)
+        data.insert(len(data.columns), "llm_dep", llm_pos)
+        data.insert(len(data.columns), "metric_dep", pos)
 
     if 'all' in metrics or 'sbert' in metrics:
         print("Metric: sbert")
