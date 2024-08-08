@@ -19,7 +19,7 @@ def preprocess_text(text):
 ## return a dict with the number of pos tags normalised by length of the turn (a probability distrubution)
 def parse_tree(input_list):
     output_list = []
-    parser = benepar.Parser("benepar_en3")
+    parser = benepar.Parser("benepar_en2")
     for text in tqdm(input_list):
         const_count = {
             "ADJP":0, "-ADV":0, "ADVP":0, "-BNF":0, "CC": 0, "CD": 0, "-CLF": 0, "-CLR": 0,

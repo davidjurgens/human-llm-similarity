@@ -12,7 +12,7 @@ import re
 import lmppl
 from argparse import Namespace
 
-from analysis.pos_tags_JSD import POS_tags_Dep_Spacy
+from analysis.pos_tags_JSD import pos_tag_metric
 from analysis.liwc_dist_extractor import LiwcDistExtractor
 from analysis.embedding_similarity import EmbeddingSimilarity
 from analysis.capitalization_punctuation_similarity import capitalization, punctuation
@@ -246,7 +246,7 @@ def compute_single_col_metric(data, turn_name, metric, output_path):
         df_metric.fillna(0, inplace=True)
     elif metric == 'pos':
         print("Metric: pos") # 12 cols, gpu
-        df_metric = POS_tags_Dep_Spacy(data[turn_name])
+        df_metric = pos_tag_metric(data[turn_name])
         df_metric = pd.DataFrame(df_metric, index=data.index)
     elif metric == 'constituency':
         print("Metric: constituency") # not checked yet, gpu
@@ -370,20 +370,10 @@ if __name__ == '__main__':
         data = pd.melt(data, id_vars=ids, value_vars=vals, var_name='prompt', value_name='llm_turn_3')
         data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
 
-    # compare whether the llm and human produces a response at the same time
-    if 'all' in metrics or 'end' in metrics:
-        print("Metric: end")
-        human_end = is_no_response(data['human_turn_3']) 
-        llm_end = is_no_response(data['llm_turn_3'])
-        data.insert(len(data.columns), "human_end", human_end)
-        data.insert(len(data.columns), "llm_end", llm_end)
-        data.insert(len(data.columns), "metric_end", (human_end == llm_end).astype(int))
-        data.to_json(re.sub('.json','_end.json',output_path), orient='records', lines=True)
-
     #subset to cases where llm and human produce a response for the remaining metrics
     # produce a score comparing human vs. llm text
-    data = data[(is_no_response(data['human_turn_3']) == 0) & 
-                 (is_no_response(data['llm_turn_3']) == 0)]
+    data = data[(is_no_response(data['human_turn_3']) == 0) &
+                (is_no_response(data['llm_turn_3']) == 0)]
 
     if 'all' in metrics or 'lexical' in metrics:
         print("Metric: lexical")
@@ -392,46 +382,41 @@ if __name__ == '__main__':
         args.contraction_file_path = "/shared/0/projects/research-jam-summer-2024/data/contractions_dict.json"
         bss = BasicSyntacticStatistics(args)
         # human metrics
-        human = bss.get_counts(data['human_turn_3'])
+        human = bss.get_counts(data['human_turn_1'])
         human['p_typo'] = human['typo_count'] / human['word_count']
         human['p_contract'] = human['contract_count'] / human['word_count']
         # llm metrics
-        llm = bss.get_counts(data['llm_turn_3'])
+        llm = bss.get_counts(data['ai_turn_2'])
         llm['p_typo'] = llm['typo_count'] / llm['word_count']
         llm['p_contract'] = llm['contract_count'] / llm['word_count']
 
         # comparison num words
         words = log(llm['word_count']) - log(human['word_count'])
-        data.insert(len(data.columns), "human_log_word_count", log(human['word_count']))
-        data.insert(len(data.columns), "llm_log_word_count", log(llm['word_count']))
-        data.insert(len(data.columns), "metric_log_word_count", words)
+        data.insert(len(data.columns), "human_turn_1_log_word_count", log(human['word_count']))
+        data.insert(len(data.columns), "ai_turn_2_log_word_count", log(llm['word_count']))
 
         # comparison num words
         human['word_length'] = human['char_count'] / human['word_count'] - 1
         llm['word_length'] = llm['char_count'] / llm['word_count'] - 1
         word_length = llm['word_length'] - human['word_length']
-        data.insert(len(data.columns), "human_word_length", log(human['word_length']))
-        data.insert(len(data.columns), "llm_word_length", log(llm['word_length']))
-        data.insert(len(data.columns), "metric_word_length", word_length)
+        data.insert(len(data.columns), "human_turn_1_word_length", log(human['word_length']))
+        data.insert(len(data.columns), "ai_turn_2_word_length", log(llm['word_length']))
 
         # comparison contractions
         contract_count = llm['p_contract'] - human['p_contract']
-        data.insert(len(data.columns), "human_contract_count", human['p_contract'])
-        data.insert(len(data.columns), "llm_contract_count", llm['p_contract'])
-        data.insert(len(data.columns), "metric_contract_count", contract_count)
+        data.insert(len(data.columns), "human_turn_1_contract_count", human['p_contract'])
+        data.insert(len(data.columns), "ai_turn_2_contract_count", llm['p_contract'])
 
         # comparison typo
         typo = llm['p_typo'] - human['p_typo']
-        data.insert(len(data.columns), "human_typo", human['p_typo'])
-        data.insert(len(data.columns), "llm_typo", llm['p_typo'])
-        data.insert(len(data.columns), "metric_typo", typo)
-        
+        data.insert(len(data.columns), "human_turn_1_typo", human['p_typo'])
+        data.insert(len(data.columns), "ai_turn_2_typo", llm['p_typo'])
+
     if 'all' in metrics or 'capitalization' in metrics:
         print("Metric: capitalization")
-        hum_cap, llm_cap, cap = capitalization(data, 'human_turn_3', 'llm_turn_3')
-        data.insert(len(data.columns), "human_capitalization", hum_cap)
-        data.insert(len(data.columns), "llm_capitalization", llm_cap)
-        data.insert(len(data.columns), "metric_capitalization", cap)
+        hum_cap, llm_cap, cap = capitalization(data, 'human_turn_1', 'ai_turn_2')
+        data.insert(len(data.columns), "human_turn_1_capitalization", hum_cap)
+        data.insert(len(data.columns), "ai_turn_2_capitalization", llm_cap)
 
     if 'all' in metrics or 'grammar' in metrics:
         print("Metric: grammar")
@@ -439,137 +424,96 @@ if __name__ == '__main__':
         args.metrics = 'grammar_error_count,word_count'
         bss = BasicSyntacticStatistics(args)
         #human metrics
-        human = bss.get_counts(data['human_turn_3'])
+        human = bss.get_counts(data['human_turn_1'])
         human['p_grammar'] = human['grammar_error_count'] / human['word_count']
         #llm metrics
-        llm = bss.get_counts(data['llm_turn_3'])
+        llm = bss.get_counts(data['ai_turn_2'])
         llm['p_grammar'] = llm['grammar_error_count'] / llm['word_count']
         #comparison
         grammar = 1 - jensenshannon(np.array([(p, 1-p) for p in human['p_grammar'].apply(jitter_prob)]),
                                     np.array([(p, 1-p) for p in llm['p_grammar'].apply(jitter_prob)]), axis=1)
-        data.insert(len(data.columns), "human_grammar", human['p_grammar'].apply(jitter_prob))
-        data.insert(len(data.columns), "llm_grammar", llm['p_grammar'].apply(jitter_prob))
-        data.insert(len(data.columns), "metric_grammar", grammar)
-        
+        data.insert(len(data.columns), "human_turn_1_grammar", human['p_grammar'].apply(jitter_prob))
+        data.insert(len(data.columns), "ai_turn_2_grammar", llm['p_grammar'].apply(jitter_prob))
+
     if 'all' in metrics or 'punctuation' in metrics:
         print("Metric: punctuation")
-        hum_pun, llm_pun, pun = punctuation(data, 'human_turn_3', 'llm_turn_3')
-        data.insert(len(data.columns), "human_punctuation", hum_pun)
-        data.insert(len(data.columns), "llm_punctuation", llm_pun)
-        data.insert(len(data.columns), "metric_punctuation", pun)
+        hum_pun, llm_pun, pun = punctuation(data, 'human_turn_1', 'ai_turn_2')
+        data.insert(len(data.columns), "human_turn_1_punctuation", hum_pun)
+        data.insert(len(data.columns), "ai_turn_2_punctuation", llm_pun)
 
     if 'all' in metrics or 'pos' in metrics:
         print("Metric: pos")
-        hum_pos, hum_dep, llm_pos, llm_dep, pos, dep = POS_tags_Dep_Spacy(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_pos", hum_pos)
-        data.insert(len(data.columns), "llm_pos", llm_pos)
-        data.insert(len(data.columns), "metric_pos", pos)
+        hum_pos, llm_pos, pos = pos_tag_metric(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_pos", hum_pos)
+        data.insert(len(data.columns), "ai_turn_2_pos", llm_pos)
 
-        data.insert(len(data.columns), "human_dep", hum_pos)
-        data.insert(len(data.columns), "llm_dep", llm_pos)
-        data.insert(len(data.columns), "metric_dep", pos)
-
-    if 'all' in metrics or 'sbert' in metrics:
-        print("Metric: sbert")
-        embeddings = EmbeddingSimilarity()
-        embeddings_1 = embeddings.get_embeddings(list(data['human_turn_3']))
-        embeddings_2 = embeddings.get_embeddings(list(data['llm_turn_3']))
-        similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
-        data.insert(len(data.columns), "metric_sbert", similarity)
-
-    if 'all' in metrics or 'semantic' in metrics:
-        print("Metric: semantic")
-        args.no_response_indicators = '[no response]'
-        args.metrics = 'bleu,rouge,luar_similarity'
-        #args.metrics = 'bleu,rouge'
-        bss = BasicSyntacticStatistics(args)
-        df_metrics = bss.get_metrics(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "metric_rouge", df_metrics['rouge-l'])
-        data.insert(len(data.columns), "metric_bleu", df_metrics['bleu'])
-        data.insert(len(data.columns), "metric_luar", df_metrics['luar_similarity'])
-    
     if 'all' in metrics or 'liwc' in metrics:
         print("Metric: liwc")
         liwc_extractor_obj = LiwcDistExtractor(agg_results=False, normalize=True)
-        human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_3'].to_list())
-        llm_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['llm_turn_3'].to_list())
+        human_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['human_turn_1'].to_list())
+        llm_liwc = liwc_extractor_obj.extract_liwc_occurrences(data['ai_turn_2'].to_list())
         liwc = [liwc_extractor_obj.liwc_similarity(human, llm, method="jsd") for human, llm in zip(human_liwc, llm_liwc)]
-        data.insert(len(data.columns), "human_liwc", human_liwc)
-        data.insert(len(data.columns), "llm_liwc", llm_liwc)
-        data.insert(len(data.columns), "metric_liwc", liwc)
+        data.insert(len(data.columns), "human_turn_1_liwc", human_liwc)
+        data.insert(len(data.columns), "ai_turn_2_liwc", llm_liwc)
 
     if 'all' in metrics or 'topic' in metrics:
         print("Metric: topic")
-        human_topic, llm_topic, topic_data = topic(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_topic", human_topic)
-        data.insert(len(data.columns), "llm_topic", llm_topic)
-        data.insert(len(data.columns), "metric_topic", topic_data)
+        human_topic, llm_topic, topic_data = topic(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_topic", human_topic)
+        data.insert(len(data.columns), "ai_turn_2_topic", llm_topic)
 
     if 'all' in metrics or 'sentiment' in metrics:
         print("Metric: sentiment")
-        human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_sentiment", human_sent)
-        data.insert(len(data.columns), "llm_sentiment", llm_sent)
-        data.insert(len(data.columns), "metric_sentiment", sentiment_data)
+        human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_sentiment", human_sent)
+        data.insert(len(data.columns), "ai_turn_2_sentiment", llm_sent)
 
     if 'all' in metrics or 'formality' in metrics:
         print("Metric: formality")
-        human_form, llm_form, formality_data = formality(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_formality", human_form)
-        data.insert(len(data.columns), "llm_formality", llm_form)
-        data.insert(len(data.columns), "metric_formality", formality_data)
+        human_form, llm_form, formality_data = formality(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_formality", human_form)
+        data.insert(len(data.columns), "ai_turn_2_formality", llm_form)
 
     if 'all' in metrics or 'politeness' in metrics:
         print("Metric: politeness")
-        human_polite, llm_polite, politeness_data = politeness(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_politeness", human_polite)
-        data.insert(len(data.columns), "llm_politeness", llm_polite)
-        data.insert(len(data.columns), "metric_politeness", politeness_data)
-        
+        human_polite, llm_polite, politeness_data = politeness(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_politeness", human_polite)
+        data.insert(len(data.columns), "ai_turn_2_politeness", llm_polite)
+
     if 'all' in metrics or 'toxicity' in metrics:
         print("Metric: toxicity")
-        human_toxic, llm_toxic, toxicity_data = toxicity(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_toxicity", human_toxic)
-        data.insert(len(data.columns), "llm_toxicity", llm_toxic)
-        data.insert(len(data.columns), "metric_toxicity", toxicity_data)
+        human_toxic, llm_toxic, toxicity_data = toxicity(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_toxicity", human_toxic)
+        data.insert(len(data.columns), "ai_turn_2_toxicity", llm_toxic)
 
     if 'all' in metrics or 'subjectivity' in metrics:
         print("Metric: subjectivity")
         from analysis.subjectivity import SubjectivityAnalyzer
-        human_subject, llm_subject, subjectivity_data = subjectivity(list(data['human_turn_3']), list(data['llm_turn_3']))
-        data.insert(len(data.columns), "human_subjectivity", human_subject)
-        data.insert(len(data.columns), "llm_subjectivity", llm_subject)
-        data.insert(len(data.columns), "metric_subjectivity", subjectivity_data)
+        human_subject, llm_subject, subjectivity_data = subjectivity(list(data['human_turn_1']), list(data['ai_turn_2']))
+        data.insert(len(data.columns), "human_turn_1_subjectivity", human_subject)
+        data.insert(len(data.columns), "ai_turn_2_subjectivity", llm_subject)
 
     if 'all' in metrics or 'perplexity' in metrics:
         print("Metric: perplexity")
-        human_perplexity, llm_perplexity, perplexity = perplexity(list(data['human_turn_3']), list(data['llm_turn_3']))
-        data.insert(len(data.columns), "human_perplexity", human_perplexity)
-        data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
-        data.insert(len(data.columns), "metric_perplexity", perplexity)
+        human_perplexity, llm_perplexity, perplexity = perplexity(list(data['human_turn_1']), list(data['ai_turn_2']))
+        data.insert(len(data.columns), "human_turn_1_perplexity", human_perplexity)
+        data.insert(len(data.columns), "ai_turn_2_perplexity", llm_perplexity)
 
-    if 'all' in metrics or 'factuality' in metrics:
-        print("Metric: factuality")
-        from analysis.factuality_eval import get_align_score
-        fact = get_align_score(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "metric_factuality", fact)
 
     if 'all' in metrics or 'constituency' in metrics:
         print("Metric: constituency")
         from analysis.constituency_parse import const_parse_metric
-        human_constituency, llm_constituency, constituency = const_parse_metric(list(data['human_turn_3']), list(data['llm_turn_3']))
-        data.insert(len(data.columns), "human_constituency_parse", human_constituency)
-        data.insert(len(data.columns), "llm_constituency_parse", llm_constituency)
-        data.insert(len(data.columns), "metric_constituency_parse", constituency)
+        human_constituency, llm_constituency, constituency = const_parse_metric(list(data['human_turn_1']), list(data['ai_turn_2']))
+        data.insert(len(data.columns), "human_turn_1_constituency_parse", human_constituency)
+        data.insert(len(data.columns), "ai_turn_2_constituency_parse", llm_constituency)
 
     if 'all' in metrics or 'readability' in metrics:
         print("Metric: readability")
         # note that the function returns also nan values!
-        human = readability_single_column(list(data['human_turn_3']))
-        llm = readability_single_column(list(data['llm_turn_3']))
+        human = readability_single_column(list(data['human_turn_1']))
+        llm = readability_single_column(list(data['ai_turn_2']))
         comp = llm - human
-        data.insert(len(data.columns), "human_readability", human)
-        data.insert(len(data.columns), "llm_readability", llm)
-        data.insert(len(data.columns), "metric_readability", comp)
+        data.insert(len(data.columns), "human_turn_1_readability", human)
+        data.insert(len(data.columns), "ai_turn_2_readability", llm)
 
     data.to_json(output_path, orient='records', lines=True)

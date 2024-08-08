@@ -1,7 +1,7 @@
-from readability import Readability
+#from readability import Readability
 from os.path import join as opj
 import pandas as pd
-from readability.exceptions import ReadabilityException
+#from readability.exceptions import ReadabilityException
 from tqdm import tqdm
 import multiprocessing as mp
 import textstat
@@ -20,11 +20,11 @@ def get_flesch_readability(idx, text, normalize=True):
         return {'flesch': None}
     else:
         readability_score = textstat.flesch_reading_ease(text)
-        if readability_score < 0:
+        if readability_score < 0 or readability_score > 110:
             return {'flesch': None}
         if normalize:
             normalized_score = readability_score / 110.0
-            return {'flesch': normalized_score if normalized_score < 1 else -1}
+            return {'flesch': normalized_score if normalized_score < 1 else None}
         else:
             return {'flesch': readability_score}
 

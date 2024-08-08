@@ -323,7 +323,7 @@ class Inferencer():
     def __init__(self, ckpt_path, model='bert-base-uncased', batch_size=32, device='cuda', verbose=True) -> None:
         self.device = device
         if ckpt_path is not None:
-            self.model = BERTAlignModel(model=model).load_from_checkpoint(checkpoint_path=ckpt_path, strict=False).to(self.device)
+            self.model = BERTAlignModel.load_from_checkpoint(checkpoint_path=ckpt_path, strict=False).to(self.device)
         else:
             warning('loading UNTRAINED model!')
             self.model = BERTAlignModel(model=model).to(self.device)
@@ -398,13 +398,21 @@ class Inferencer():
                 output_score = self.inference(premise_sent_mat, hypo_sents_mat)[1] ### use NLI head OR ALIGN head
             elif self.nlg_eval_mode == 'reg_sp':
                 output_score = self.inference(premise_sent_mat, hypo_sents_mat)[0] ### use NLI head OR ALIGN head
-            
-            output_score = output_score.view(len(premise_sents), len(hypo_sents)).max(dim=0).values.mean().item() ### sum or mean depends on the task/aspect
+
+            if len(output_score) > 1:
+                output_score = output_score.view(len(premise_sents), len(hypo_sents)).max(dim=0).values.mean().item() ### sum or mean depends on the task/aspect
+            else:
+                output_score = output_score.max(dim=0).values.mean().item() ### sum or mean depends on the task/aspect
+
             return output_score
 
         
         output_score = self.inference(premise_sent_mat, hypo_sents_mat)[2][:,0] ### use NLI head OR ALIGN head
-        output_score = output_score.view(len(premise_sents), len(hypo_sents)).max(dim=0).values.mean().item() ### sum or mean depends on the task/aspect
+        if len(output_score) > 1:
+            output_score = output_score.view(len(premise_sents), len(hypo_sents)).max(
+                dim=0).values.mean().item()  ### sum or mean depends on the task/aspect
+        else:
+            output_score = output_score.max(dim=0).values.mean().item()  ### sum or mean depends on the task/aspect
 
         return output_score
 
@@ -624,7 +632,7 @@ class AlignScore:
         return self.model.nlg_eval(contexts, claims)[1].tolist()
 
 def get_align_score(human_list, llm_list):
-    scorer = AlignScore(model='roberta-base', batch_size=32, device='cuda:3', ckpt_path='checkpoint/AlignScore-base.ckpt', evaluation_mode='nli_sp')
+    scorer = AlignScore(model='roberta-base', batch_size=32, device='cuda', ckpt_path='checkpoint/AlignScore-base.ckpt', evaluation_mode='nli_sp')
     score = scorer.score(contexts=human_list, claims=llm_list)
     return score
 
