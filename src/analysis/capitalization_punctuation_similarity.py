@@ -58,6 +58,6 @@ def punctuation(df, human_col, ai_col=None):
     
     # calculate MSE for all examples
     for i in df.index:
-        outputs.append(np.sqrt(np.mean((np.array(list(human_distributions[i].values())) -
-                                        np.array(list(ai_distributions[i].values()))) ** 2)))
+        outputs.append(np.sqrt(np.mean((np.array(list(ai_distributions[i].values())) -
+                                        np.array(list(human_distributions[i].values()))) ** 2)))
     return human_distributions, ai_distributions, outputs
