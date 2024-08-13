@@ -63,9 +63,10 @@
       "on": True,
       "output_filename": 'task_assignment.json',
       "sampling_strategy": 'random',
-      "labels_per_instance": 2,
-      "instance_per_annotator": 235,
+      "labels_per_instance": 1,
+      "instance_per_annotator": 50,
       "test_question_per_annotator": 0, # you must set up the test question in surveyflow to use this function
+      "allow_user_adjust_quota": True,
 
       "users": [  ],
     },
@@ -84,6 +85,8 @@
             "labels": [
                 {"name": "[1] Yes", "key_value": "1"},
                 {"name": "[2] No", "key_value": "2"},
+                {"name": "[3] Non-English Content (can't answer)", "key_value": "3"},
+                {"name": "[4] Uncomfortable Answering (NSFW, persona you don't want to adopt, etc.)", "key_value": "4"},
             ],
 
             # adding requirements for labels, when "required" is True, the annotators will be asked to finish the current instance to proceed
@@ -98,7 +101,7 @@
         {
             "annotation_type": "text",
             "name": "ResponseText",
-            "description": "If yes, what will be the person's next response?",
+            "description": "If yes, write the person's next response.",
             
             # adding requirements for labels, when "required" is True, the annotators will be asked to finish the current instance to proceed
             "label_requirement": {"required":False},
