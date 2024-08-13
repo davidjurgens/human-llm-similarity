@@ -12,6 +12,8 @@ import re
 import lmppl
 from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
 from syntactic_metrics_russian import BasicSyntacticStatisticsRussian
+from embedding_similarity import EmbeddingSimilarity
+from capitalization_punctuation_similarity import punctuation
 
 def enforce_reproducibility(seed=1000):
     # Sets seed manually for both CPU and CUDA
