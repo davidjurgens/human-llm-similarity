@@ -11,6 +11,7 @@ from numpy import log
 import re
 import lmppl
 from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
+from syntactic_metrics_russian import BasicSyntacticStatisticsRussian
 
 def enforce_reproducibility(seed=1000):
     # Sets seed manually for both CPU and CUDA
@@ -142,6 +143,61 @@ if __name__ == '__main__':
         data = pd.melt(data, id_vars=ids, value_vars=vals, var_name='prompt', value_name='llm_turn_3')
         data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
 
+    # compare whether the llm and human produces a response at the same time
+    if 'all' in metrics or 'end' in metrics:
+        print("Metric: end")
+        human_end = is_no_response(data['human_turn_3']) 
+        llm_end = is_no_response(data['llm_turn_3'])
+        data.insert(len(data.columns), "human_end", human_end)
+        data.insert(len(data.columns), "llm_end", llm_end)
+        data.insert(len(data.columns), "metric_end", (human_end == llm_end).astype(int))
+        data.to_json(re.sub('.json','_end.json',output_path), orient='records', lines=True)
+
+    #subset to cases where llm and human produce a response for the remaining metrics
+    # produce a score comparing human vs. llm text
+    data = data[(is_no_response(data['human_turn_3']) == 0) &
+                (is_no_response(data['llm_turn_3']) == 0)]
+    
+    if 'all' in metrics or 'lexical' in metrics:
+        print("Metric: lexical")
+        args.no_response_indicators = '[no response]'
+        args.metrics = 'word_count,char_count,alnum_count'
+        bss = BasicSyntacticStatisticsRussian(args)
+
+        human = bss.get_counts(data['human_turn_3'])
+        llm = bss.get_counts(data['llm_turn_3'])
+        # comparison num words
+        words = log(llm['word_count']) - log(human['word_count'])
+        data.insert(len(data.columns), "human_turn_3_log_word_count", log(human['word_count']))
+        data.insert(len(data.columns), "llm_turn_3_log_word_count", log(llm['word_count']))
+        data.insert(len(data.columns), "metric_log_word_count", words)
+        # alpha_num ratio
+        data.insert(len(data.columns), "human_turn_3_alnum_ratio", human['alnum_count'] / human['char_count'])
+        data.insert(len(data.columns), "llm_turn_3_alnum_ratio", llm['alnum_count'] / llm['char_count'])
+
+        # Individual metrics
+        human = bss.get_counts(data['human_turn_1'])
+        llm = bss.get_counts(data['ai_turn_2'])
+        # comparison num words
+        data.insert(len(data.columns), "human_turn_1_log_word_count", log(human['word_count']))
+        data.insert(len(data.columns), "ai_turn_2_log_word_count", log(llm['word_count']))
+        # alpha_num ratio
+        data.insert(len(data.columns), "human_turn_1_alnum_ratio", human['alnum_count'] / human['char_count'])
+        data.insert(len(data.columns), "ai_turn_2_alnum_ratio", llm['alnum_count'] / llm['char_count'])
+
+    
+    if 'all' in metrics or 'punctuation' in metrics:
+        print("Metric: punctuation")
+        hum_pun, llm_pun, pun = punctuation(data, 'human_turn_3', 'llm_turn_3')
+        data.insert(len(data.columns), "human_turn_3_punctuation", hum_pun)
+        data.insert(len(data.columns), "llm_turn_3_punctuation", llm_pun)
+        data.insert(len(data.columns), "metric_punctuation", pun)
+
+        # Individual metrics
+        hum_pun, llm_pun, pun = punctuation(data, 'human_turn_1', 'ai_turn_2')
+        data.insert(len(data.columns), "human_turn_1_punctuation", hum_pun)
+        data.insert(len(data.columns), "ai_turn_2_punctuation", llm_pun)
+
     if 'all' in metrics or 'sentiment' in metrics:
         print("Metric: sentiment")
         human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_3'], data['llm_turn_3'])
@@ -163,4 +219,4 @@ if __name__ == '__main__':
         data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
         data.insert(len(data.columns), "metric_perplexity", perplexity)
 
-    a = 1
+    data.to_json(output_path, orient='records', lines=True)
