@@ -113,8 +113,8 @@ def make_human_vs_llm_df(f, base_dir):
     df['human_punctuation'] = df['human_punctuation'].apply(add_total)
     df['llm_punctuation'] = df['llm_punctuation'].apply(add_total)
     #subset columns
-    df = df.drop(['human_pos','llm_pos'], axis=1)[[c for c in df.columns 
-                                                   if c in merge_keys or re.sub('human_|llm_','',c) in all_metrics]]
+    df = df[[c for c in df.columns 
+             if c in merge_keys or re.sub('human_|llm_','',c) in all_metrics]].drop(['human_pos','llm_pos'], axis=1)
 
 
     print('read dependency parse metrics')
