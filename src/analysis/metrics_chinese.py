@@ -245,17 +245,17 @@ if __name__ == '__main__':
     if 'all' in metrics or 'sbert' in metrics:
         print("Metric: sbert")
         embeddings = EmbeddingSimilarity(model_name="Alibaba-NLP/gte-Qwen2-7B-instruct")
-        embeddings_1 = embeddings.get_embeddings(list(data['human_turn_3']), batch_size=4)
-        embeddings_2 = embeddings.get_embeddings(list(data['llm_turn_3']), batch_size=4)
+        embeddings_1 = embeddings.get_embeddings(list(data['human_turn_3']), batch_size=4).cpu()
+        embeddings_2 = embeddings.get_embeddings(list(data['llm_turn_3']), batch_size=4).cpu()
         similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
-        data.insert(len(data.columns), "human_turn_3_sbert_embedding", embeddings_1.cpu())
-        data.insert(len(data.columns), "llm_turn_3_sbert_embedding", embeddings_2.cpu())
+        data.insert(len(data.columns), "human_turn_3_sbert_embedding", [embeddings_1[i] for i in range(embeddings_1.shape[0])])
+        data.insert(len(data.columns), "llm_turn_3_sbert_embedding", [embeddings_2[i] for i in range(embeddings_2.shape[0])])
         data.insert(len(data.columns), "metric_sbert", similarity)
 
         # Individual metrics
-        embeddings_3 = embeddings.get_embeddings(list(data['human_turn_1']))
-        embeddings_4 = embeddings.get_embeddings(list(data['ai_turn_2']))
-        data.insert(len(data.columns), "human_turn_1_sbert_embedding", embeddings_3.cpu())
-        data.insert(len(data.columns), "ai_turn_2_sbert_embedding", embeddings_4.cpu())
+        embeddings_3 = embeddings.get_embeddings(list(data['human_turn_1']), batch_size=4).cpu()
+        embeddings_4 = embeddings.get_embeddings(list(data['ai_turn_2']), batch_size=4).cpu()
+        data.insert(len(data.columns), "human_turn_1_sbert_embedding", [embeddings_3[i] for i in range(embeddings_3.shape[0])])
+        data.insert(len(data.columns), "ai_turn_2_sbert_embedding", [embeddings_4[i] for i in range(embeddings_4.shape[0])])
 
     data.to_json(output_path, orient='records', lines=True)
