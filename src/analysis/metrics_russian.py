@@ -36,7 +36,7 @@ def load_hf_model(model_name, use_pipeline=True):
         cache_dir = os.environ['HF_MODEL_CACHE']
     if use_pipeline:
         pipe = pipeline("text-classification", model=model_name, model_kwargs={"cache_dir": cache_dir},
-                        device_map='mps', max_length=512, truncation=True, return_all_scores=True)
+                        device_map='cuda', max_length=512, truncation=True, return_all_scores=True)
     else:
         model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir=cache_dir).to("mps")
         tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
@@ -74,17 +74,17 @@ def run_hf_model(data, model_name, column_name, use_pipeline=True):
 def sentiment(human, llm):
     def convert_to_scalar(data):
         score_map = {
-            'negative': 0,
-            'neutral': 0.5,
-            'positive': 1,
+            'NEGATIVE': 0,
+            'NEUTRAL': 0.5,
+            'POSITIVE': 1,
         }
         out_data = []
         for d in data:
             out_data.append(sum([score_map[s['label']]*s['score'] for s in d]))
         return out_data
 
-    human_sentiment = convert_to_scalar(run_hf_model(human, "blanchefort/rubert-base-cased-sentiment", 'sentiment', use_pipeline=False))
-    llm_sentiment = convert_to_scalar(run_hf_model(llm, "blanchefort/rubert-base-cased-sentiment", 'sentiment', use_pipeline=False))
+    human_sentiment = convert_to_scalar(run_hf_model(human, "blanchefort/rubert-base-cased-sentiment", 'sentiment'))
+    llm_sentiment = convert_to_scalar(run_hf_model(llm, "blanchefort/rubert-base-cased-sentiment", 'sentiment'))
 
     return human_sentiment, llm_sentiment, np.array(llm_sentiment) - np.array(human_sentiment)
 
@@ -116,13 +116,17 @@ def perplexity(human, llm=None):
     # Now all of the prompts
     return human_perplexity, llm_perplexity, np.array(llm_perplexity) - np.array(human_perplexity)
 
+def is_no_response(col, no_response_indicator = '[no response]'): 
+    cond = (col == no_response_indicator) | (col.apply(len) == 0)
+    return (cond).apply(lambda x: 1 if x else 0)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data",
                         required=False)
     parser.add_argument("--output_path", type=str, help="Name of the file to save the generated text",
                         required=False)
-    parser.add_argument("--metrics", type=str, default='perplexity', help="Comma separated list of the metrics you want to run, or 'all' to run all")
+    parser.add_argument("--metrics", type=str, default='all', help="Comma separated list of the metrics you want to run, or 'all' to run all")
     parser.add_argument("--seed", type=int, help="Random seed",
                         default=1000)
 
@@ -134,7 +138,7 @@ if __name__ == '__main__':
     output_path = args.output_path
     metrics = args.metrics.split(",")
 
-    input_path = "data/llama-3.1-8B-smaller.jsonl"
+#     input_path = "data/llama-3.1-8B-smaller.jsonl"
 
     # to get each dataframe
     data = pd.read_json(input_path, orient='records', lines=True)
