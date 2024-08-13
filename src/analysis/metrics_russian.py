@@ -207,23 +207,38 @@ if __name__ == '__main__':
     if 'all' in metrics or 'sentiment' in metrics:
         print("Metric: sentiment")
         human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_sentiment", human_sent)
-        data.insert(len(data.columns), "llm_sentiment", llm_sent)
+        data.insert(len(data.columns), "human_turn_3_sentiment", human_sent)
+        data.insert(len(data.columns), "llm_turn_3_sentiment", llm_sent)
         data.insert(len(data.columns), "metric_sentiment", sentiment_data)
+
+        # Individual metrics
+        human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_sentiment", human_sent)
+        data.insert(len(data.columns), "ai_turn_2_sentiment", llm_sent)
 
     if 'all' in metrics or 'toxicity' in metrics:
         print("Metric: toxicity")
         human_toxic, llm_toxic, toxicity_data = toxicity(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_toxicity", human_toxic)
-        data.insert(len(data.columns), "llm_toxicity", llm_toxic)
+        data.insert(len(data.columns), "human_turn_3_toxicity", human_toxic)
+        data.insert(len(data.columns), "llm_turn_3_toxicity", llm_toxic)
         data.insert(len(data.columns), "metric_toxicity", toxicity_data)
+
+        # Individual metrics
+        human_toxic, llm_toxic, toxicity_data = toxicity(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_toxicity", human_toxic)
+        data.insert(len(data.columns), "ai_turn_2_toxicity", llm_toxic)
 
     if 'all' in metrics or 'perplexity' in metrics:
         print("Metric: perplexity")
         human_perplexity, llm_perplexity, perplexity = perplexity(list(data['human_turn_3']), list(data['llm_turn_3']))
-        data.insert(len(data.columns), "human_perplexity", human_perplexity)
-        data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
+        data.insert(len(data.columns), "human_turn_3_perplexity", human_perplexity)
+        data.insert(len(data.columns), "llm_turn_3_perplexity", llm_perplexity)
         data.insert(len(data.columns), "metric_perplexity", perplexity)
+
+        # Individual metrics
+        human_perplexity, llm_perplexity, perplexity_data = perplexity(list(data['human_turn_1']), list(data['ai_turn_2']))
+        data.insert(len(data.columns), "human_turn_1_perplexity", human_perplexity)
+        data.insert(len(data.columns), "ai_turn_2_perplexity", llm_perplexity)
     
 
     if 'all' in metrics or 'sbert' in metrics:
@@ -232,14 +247,14 @@ if __name__ == '__main__':
         embeddings_1 = embeddings.get_embeddings(list(data['human_turn_3']), batch_size=4).cpu()
         embeddings_2 = embeddings.get_embeddings(list(data['llm_turn_3']), batch_size=4).cpu()
         similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
-        data.insert(len(data.columns), "human_turn_3_sbert_embedding", [embeddings_1[i] for i in range(embeddings_1.shape[0])])
-        data.insert(len(data.columns), "llm_turn_3_sbert_embedding", [embeddings_2[i] for i in range(embeddings_2.shape[0])])
+        data.insert(len(data.columns), "human_turn_3_sbert_embedding", embeddings_1.tolist())
+        data.insert(len(data.columns), "llm_turn_3_sbert_embedding", embeddings_2.tolist())
         data.insert(len(data.columns), "metric_sbert", similarity)
 
         # Individual metrics
         embeddings_3 = embeddings.get_embeddings(list(data['human_turn_1']), batch_size=4).cpu()
         embeddings_4 = embeddings.get_embeddings(list(data['ai_turn_2']), batch_size=4).cpu()
-        data.insert(len(data.columns), "human_turn_1_sbert_embedding", [embeddings_3[i] for i in range(embeddings_3.shape[0])])
-        data.insert(len(data.columns), "ai_turn_2_sbert_embedding", [embeddings_4[i] for i in range(embeddings_4.shape[0])])
+        data.insert(len(data.columns), "human_turn_1_sbert_embedding", embeddings_3.tolist())
+        data.insert(len(data.columns), "ai_turn_2_sbert_embedding", embeddings_4.tolist())
 
     data.to_json(output_path, orient='records', lines=True)
