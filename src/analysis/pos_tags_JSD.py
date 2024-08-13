@@ -3,7 +3,7 @@ import os
 import numpy as np
 import nltk
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from scipy.spatial.distance import jensenshannon
 import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
