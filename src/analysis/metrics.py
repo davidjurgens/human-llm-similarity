@@ -12,7 +12,7 @@ import re
 import lmppl
 from argparse import Namespace
 
-from analysis.pos_tags_JSD import POS_tags_Dep_Spacy
+from analysis.pos_tags_JSD import pos_tag_dep_parse_metric
 from analysis.liwc_dist_extractor import LiwcDistExtractor
 from analysis.embedding_similarity import EmbeddingSimilarity
 from analysis.capitalization_punctuation_similarity import capitalization, punctuation
@@ -193,7 +193,7 @@ def compute_single_col_metric_list(data, turn_name, metrics, output_folder, data
     if 'all' in metrics:
         metrics = [
             'lexical', 'perplexity',
-            'punctuation', 'pos', 'constituency',
+            'punctuation', 'pos', 'constituency', 'dependency',
             'sbert', 'liwc',
             'topic', 'sentiment', 'politeness', 'formality',
             'toxicity', 'readability', 'subjectivity', 'luar'
@@ -246,7 +246,12 @@ def compute_single_col_metric(data, turn_name, metric, output_path):
         df_metric.fillna(0, inplace=True)
     elif metric == 'pos':
         print("Metric: pos") # 12 cols, gpu
-        df_metric = POS_tags_Dep_Spacy(data[turn_name])
+        df_metric, _0, _1, _2, _3, _4, _5, _6 = pos_tag_dep_parse_metric(data[turn_name])
+        df_metric = pd.DataFrame(df_metric, index=data.index)
+    elif metric == 'dependency':
+        print("Metric: dependency")
+        _, df_metric_0, df_metric_1, df_metric_2, df_metric_3, df_metric_4, df_metric_5, df_metric_6 = pos_tag_dep_parse_metric(data[turn_name])
+        df_metric = zip(df_metric_0, df_metric_1, df_metric_2, df_metric_3, df_metric_4, df_metric_5, df_metric_6)
         df_metric = pd.DataFrame(df_metric, index=data.index)
     elif metric == 'constituency':
         print("Metric: constituency") # not checked yet, gpu
@@ -460,14 +465,33 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'pos' in metrics:
         print("Metric: pos")
-        hum_pos, hum_dep, llm_pos, llm_dep, pos, dep = POS_tags_Dep_Spacy(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_pos", hum_pos)
-        data.insert(len(data.columns), "llm_pos", llm_pos)
-        data.insert(len(data.columns), "metric_pos", pos)
+        human_pos, llm_pos, pos_jsd, human_dep, llm_dep, dep_jsd, human_dep_dpth, human_dep_brth, human_dep_avg_brth, human_dep_dep_dist, human_dep_max_noun_chunks, human_dep_avg_noun_chunks, llm_dep_dpth, llm_dep_brth, llm_dep_avg_brth, llm_dep_dep_dist, llm_dep_max_noun_chunks, llm_dep_avg_noun_chunks = pos_tag_dep_parse_metric(data['human_turn_3'], data['llm_turn_3'])
 
-        data.insert(len(data.columns), "human_dep", hum_pos)
-        data.insert(len(data.columns), "llm_dep", llm_pos)
-        data.insert(len(data.columns), "metric_dep", pos)
+        data.insert(len(data.columns), "human_pos", human_pos)
+        data.insert(len(data.columns), "llm_pos", llm_pos)
+        data.insert(len(data.columns), "spacy_pos", pos_jsd)
+
+    if 'all' in metrics or 'dependency' in metrics:
+        print("Metric: dependency")
+        human_pos, llm_pos, pos_jsd, human_dep, llm_dep, dep_jsd, human_dep_dpth, human_dep_brth, human_dep_avg_brth, human_dep_dep_dist, human_dep_max_noun_chunks, human_dep_avg_noun_chunks, llm_dep_dpth, llm_dep_brth, llm_dep_avg_brth, llm_dep_dep_dist, llm_dep_max_noun_chunks, llm_dep_avg_noun_chunks = pos_tag_dep_parse_metric(data['human_turn_3'], data['llm_turn_3'])
+
+        data.insert(len(data.columns), "human_dep", human_dep)
+        data.insert(len(data.columns), "llm_dep", llm_dep)
+        data.insert(len(data.columns), "spacy_dep", dep_jsd)
+
+        data.insert(len(data.columns), "human_dep_dpth", human_dep_dpth)
+        data.insert(len(data.columns), "human_dep_brth", human_dep_brth)
+        data.insert(len(data.columns), "human_dep_avg_brth", human_dep_avg_brth)
+        data.insert(len(data.columns), "human_dep_dep_dist", human_dep_dep_dist)
+        data.insert(len(data.columns), "human_dep_max_noun_chunks", human_dep_max_noun_chunks)
+        data.insert(len(data.columns), "human_dep_avg_noun_chunks", human_dep_avg_noun_chunks)
+
+        data.insert(len(data.columns), "llm_dep_dpth", llm_dep_dpth)
+        data.insert(len(data.columns), "llm_dep_brth", llm_dep_brth)
+        data.insert(len(data.columns), "llm_dep_avg_brth", llm_dep_avg_brth)
+        data.insert(len(data.columns), "llm_dep_dep_dist", llm_dep_dep_dist)
+        data.insert(len(data.columns), "llm_dep_max_noun_chunks", llm_dep_max_noun_chunks)
+        data.insert(len(data.columns), "llm_dep_avg_noun_chunks", llm_dep_avg_noun_chunks)
 
     if 'all' in metrics or 'sbert' in metrics:
         print("Metric: sbert")
