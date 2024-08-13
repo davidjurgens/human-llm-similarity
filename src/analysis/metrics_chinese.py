@@ -244,7 +244,7 @@ if __name__ == '__main__':
 
     if 'all' in metrics or 'sbert' in metrics:
         print("Metric: sbert")
-        embeddings = EmbeddingSimilarity(model_name="Alibaba-NLP/gte-Qwen2-7B-instruct")
+        embeddings = EmbeddingSimilarity(model_name="Alibaba-NLP/gte-multilingual-base")
         embeddings_1 = embeddings.get_embeddings(list(data['human_turn_3']), batch_size=4).cpu()
         embeddings_2 = embeddings.get_embeddings(list(data['llm_turn_3']), batch_size=4).cpu()
         similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
