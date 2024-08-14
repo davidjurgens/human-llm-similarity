@@ -46,6 +46,12 @@ style = {'punctuation':'distribution',
 all_metrics = {k:v for metrics_dict in [lexical, syntactic, semantic, style] for k,v in metrics_dict.items()}
 
 
+metric_category = {}
+for k in lexical: metric_category[k] = 'lexical'
+for k in syntactic: metric_category[k] = 'syntactic'
+for k in semantic: metric_category[k] = 'semantic'
+for k in style: metric_category[k] = 'style'
+
 # READ, MERGE, AND UPDATE DATA
 
 def capital_rate(text):
