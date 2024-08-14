@@ -431,7 +431,7 @@ if __name__ == '__main__':
                 ann.append([np.nan] * len(human_topic[0]))
         # ann = [[np.nan]*len(annotated_topic[0])]*len(original_data)
         # ann[np.array(original_data.index[locs], dtype=np.int32)] = annotated_topic
-        original_data["annotated_topic"] = ann
+        original_data["human_topic"] = ann
 
         # hum = [[np.nan]*len(annotated_topic[0])]*len(original_data)
         # hum[np.array(original_data.index[locs], dtype=np.int32)] = human_topic
@@ -507,7 +507,7 @@ if __name__ == '__main__':
         original_data["human_readability"] = np.nan
         original_data.loc[locs, "human_readability"] = human
 
-
+    original_data = original_data.rename(columns={'ResponseText:::text_box':'annotated_turn_3'})
     #original_data.to_csv(f"{output_path}.tsv", sep='\t', index=False)
     original_data.to_json(f"{output_path}.jsonl", orient='records', lines=True)
     if 'sbert' or 'semantic' in metrics:
