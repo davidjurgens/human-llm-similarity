@@ -38,10 +38,10 @@ jam_metrics="subjectivity,factuality"
 ### 100K FILES
 
 # Mixtral-8x7B
-input_path=/shared/0/projects/research-jam-summer-2024/data/english_only/100k_results/wildchat_subset_en_100k_Mixtral-8x7B.jsonl
-output_directory=../data/mixtral_en_100k_metrics/
-tmp_path=${output_directory}/tmp_individual
-output_file=${output_directory}/wildchat_subset_en_100k_Mixtral-8x7B_individual.jsonl
+#input_path=/shared/0/projects/research-jam-summer-2024/data/english_only/100k_results/wildchat_subset_en_100k_Mixtral-8x7B.jsonl
+#output_directory=../data/mixtral_en_100k_metrics/
+#tmp_path=${output_directory}/tmp_individual
+#output_file=${output_directory}/wildchat_subset_en_100k_Mixtral-8x7B_individual.jsonl
 
 # Mistral large
 #input_path=/shared/0/projects/research-jam-summer-2024/data/english_only/100k_results/wildchat_subset_en_100k_Mistral-Large-Instruct.jsonl
@@ -50,10 +50,10 @@ output_file=${output_directory}/wildchat_subset_en_100k_Mixtral-8x7B_individual.
 #output_file=${output_directory}/wildchat_subset_en_100k_Mistral-Large-Instruct_individual.jsonl
 
 # Llama3.1 70B
-#input_path=/shared/0/projects/research-jam-summer-2024/data/english_only/100k_results/wildchat_subset_en_100k_Llama-3.1-70B.jsonl
-#output_directory=../data/llama3.1_70B_en_100k_metrics/
-#tmp_path=${output_directory}/tmp_individual
-#output_file=${output_directory}/wildchat_subset_en_100k_Llama-3.1-70B_individual.jsonl
+input_path=/shared/0/projects/research-jam-summer-2024/data/english_only/100k_results/wildchat_subset_en_100k_Llama-3.1-70B.jsonl
+output_directory=../data/llama3.1_70B_en_100k_metrics/
+tmp_path=${output_directory}/tmp_individual
+output_file=${output_directory}/wildchat_subset_en_100k_Llama-3.1-70B_individual.jsonl
 
 
 clean=false
