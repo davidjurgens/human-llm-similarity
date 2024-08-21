@@ -15,6 +15,10 @@ def preprocess_text(text):
     text = " ".join(text.split())
     return text
 
+def is_no_response(col, no_response_indicator = '[no response]'): 
+    cond = (col == no_response_indicator) | (col.apply(len) == 0)
+    return (cond).apply(lambda x: 1 if x else 0)
+
 ## return a dict with the number of pos tags normalised by length of the turn (a probability distrubution)
 def POS_tags_NLTK(input_list):
     output_list = []
@@ -94,8 +98,13 @@ def nested_noun_chunks(nlp_op):
     except:
         return 0, 0
     
-def POS_tags_Dep_Spacy(input_list):
-    nlp = spacy.load("en_core_web_sm")
+def POS_tags_Dep_Spacy(input_list, lang="en"):
+    if lang == "cn":
+        nlp = spacy.load("zh_core_web_sm")
+    elif lang == "ru":
+        nlp = spacy.load("ru_core_news_sm")
+    else:
+        nlp = spacy.load("en_core_web_sm")
     output_list_pos = []
     output_list_dep = []
     output_list_dep_dpth = []
@@ -109,8 +118,11 @@ def POS_tags_Dep_Spacy(input_list):
         dep_count = {"ROOT": 0, "acl": 0, "acomp": 0, "advcl": 0, "advmod": 0, "agent": 0, "amod": 0, "appos": 0, "attr": 0, "aux": 0, "auxpass": 0, "case": 0, "cc": 0, "ccomp": 0, "compound": 0, "conj": 0, "csubj": 0, "csubjpass": 0, "dative": 0, "dep": 0, "det": 0, "dobj": 0, "expl": 0, "intj": 0, "mark": 0, "meta": 0, "neg": 0, "nmod": 0, "npadvmod": 0, "nsubj": 0, "nsubjpass": 0, "nummod": 0, "oprd": 0, "parataxis": 0, "pcomp": 0, "pobj": 0, "poss": 0, "preconj": 0, "predet": 0, "prep": 0, "prt": 0, "punct": 0, "quantmod": 0, "relcl": 0, "xcomp": 0}
         nlp_op = nlp(text)
         for t in nlp_op:
-            pos_count[t.pos_] += 1/len(nlp_op)
-            dep_count[t.dep_] += 1/len(nlp_op)
+            try:
+                pos_count[t.pos_] += 1/len(nlp_op)
+                dep_count[t.dep_] += 1/len(nlp_op)
+            except:
+                pass
         output_list_pos.append(pos_count)
 
         output_list_dep.append(dep_count)
@@ -119,7 +131,10 @@ def POS_tags_Dep_Spacy(input_list):
         output_list_dep_brth.append(max_breadth)
         output_list_dep_avg_brth.append(avg_breadth)
         output_list_dep_dep_dist.append(avg_dep_dist(nlp_op))
-        max_noun_chunks, avg_noun_chunks = nested_noun_chunks(nlp_op)
+        if lang == "cn" or lang == "ru":
+            max_noun_chunks, avg_noun_chunks = None, None
+        else:
+            max_noun_chunks, avg_noun_chunks = nested_noun_chunks(nlp_op)
         output_list_dep_max_noun_chunks.append(max_noun_chunks)
         output_list_dep_avg_noun_chunks.append(avg_noun_chunks)
 
@@ -143,12 +158,12 @@ def pos_tag_metric(human_list, llm_list=None):
 
     return human_pos, llm_pos, pos_jsd
 
-def pos_tag_dep_parse_metric(human_list, llm_list=None):
-    human_pos, human_dep, human_dep_dpth, human_dep_brth, human_dep_avg_brth, human_dep_dep_dist, human_dep_max_noun_chunks, human_dep_avg_noun_chunks = POS_tags_Dep_Spacy(human_list)
+def pos_tag_dep_parse_metric(human_list, llm_list=None, lang="en"):
+    human_pos, human_dep, human_dep_dpth, human_dep_brth, human_dep_avg_brth, human_dep_dep_dist, human_dep_max_noun_chunks, human_dep_avg_noun_chunks = POS_tags_Dep_Spacy(human_list, lang=lang)
     if llm_list is None:
         return human_pos, human_dep, human_dep_dpth, human_dep_brth, human_dep_avg_brth, human_dep_dep_dist, human_dep_max_noun_chunks, human_dep_avg_noun_chunks
     
-    llm_pos, llm_dep, llm_dep_dpth, llm_dep_brth, llm_dep_avg_brth, llm_dep_dep_dist, llm_dep_max_noun_chunks, llm_dep_avg_noun_chunks = POS_tags_Dep_Spacy(llm_list)
+    llm_pos, llm_dep, llm_dep_dpth, llm_dep_brth, llm_dep_avg_brth, llm_dep_dep_dist, llm_dep_max_noun_chunks, llm_dep_avg_noun_chunks = POS_tags_Dep_Spacy(llm_list, lang=lang)
     
     pos_jsd = []
     for human, llm in tqdm(zip(human_pos, llm_pos), total = len(human_pos)):
@@ -178,6 +193,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data", required=True)
     parser.add_argument("--output_path", type=str, help="Name of the file to save the generated text", required=True)
+    parser.add_argument("--lang", type=str, help="Language of text", required=False, default="en")
     
     # mod_dir = '/shared/0/projects/research-jam-summer-2024/data/english_only/prompting_results_clean/'
     # op_dir = "/shared/0/projects/research-jam-summer-2024/data/english_only/prompting_results_clean/with_metrics/"
@@ -200,12 +216,15 @@ if __name__ == "__main__":
     ids = [c for c in data.columns if c not in vals]
     data = pd.melt(data, id_vars = ids, value_vars = vals, var_name = 'prompt', value_name = 'llm_turn_3')
     data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
-    # cross tab on no response
-    pd.crosstab((data['human_turn_3'] == '[no response]'), (data['llm_turn_3'] == '[no response]'))
+
+    #subset to cases where llm and human produce a response for the remaining metrics
+    # produce a score comparing human vs. llm text
+    data = data[(is_no_response(data['human_turn_3']) == 0) &
+               (is_no_response(data['llm_turn_3']) == 0)]
 
     print("Length of file: ", len(data))
 
-    human_pos, llm_pos, pos_jsd, human_dep, llm_dep, dep_jsd, human_dep_dpth, human_dep_brth, human_dep_avg_brth, human_dep_dep_dist, human_dep_max_noun_chunks, human_dep_avg_noun_chunks, llm_dep_dpth, llm_dep_brth, llm_dep_avg_brth, llm_dep_dep_dist, llm_dep_max_noun_chunks, llm_dep_avg_noun_chunks = pos_tag_dep_parse_metric(data['human_turn_3'], data['llm_turn_3'])
+    human_pos, llm_pos, pos_jsd, human_dep, llm_dep, dep_jsd, human_dep_dpth, human_dep_brth, human_dep_avg_brth, human_dep_dep_dist, human_dep_max_noun_chunks, human_dep_avg_noun_chunks, llm_dep_dpth, llm_dep_brth, llm_dep_avg_brth, llm_dep_dep_dist, llm_dep_max_noun_chunks, llm_dep_avg_noun_chunks = pos_tag_dep_parse_metric(data['human_turn_3'], data['llm_turn_3'], lang=args.lang)
 
     data.insert(len(data.columns), "human_pos", human_pos)
     data.insert(len(data.columns), "llm_pos", llm_pos)
