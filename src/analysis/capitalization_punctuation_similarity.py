@@ -25,9 +25,15 @@ def capitalization(df, human_col, ai_col):
     return human_rates, ai_rates, ai_rates - human_rates
 
 
-def punctuation(df, human_col, ai_col=None):
+def punctuation(df, human_col, ai_col=None, lang="en"):
 
-    def punctuation_rate(text):
+    def punctuation_rate(text, lang="en"):
+        # Translate Chinese punctuations into English
+        table = {ord(f):ord(t) for f,t in zip(
+            u'，。！？【】（）％＃＠＆１２３４５６７８９０“”‘’：；',
+            u',.!?[]()%#@&1234567890""'':;')}
+        if lang == "cn":
+            text = text.translate(table)
 
         # create a dictionary of all punctuation marks to store counts
         punctuation_counts = {punct: 0 for punct in string.punctuation}
@@ -47,12 +53,12 @@ def punctuation(df, human_col, ai_col=None):
         return punctuation_counts
     
     # calculate punctuation distributions for human and ai
-    human_distributions = df[human_col].apply(punctuation_rate)
+    human_distributions = df[human_col].apply(punctuation_rate, lang=lang)
     
     if ai_col is None:
         return human_distributions
         
-    ai_distributions = df[ai_col].apply(punctuation_rate)
+    ai_distributions = df[ai_col].apply(punctuation_rate, lang=lang)
 
     outputs = []
     

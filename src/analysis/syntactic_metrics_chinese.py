@@ -11,15 +11,15 @@ import string
 import torch.nn.functional as F
 
 table = {ord(f):ord(t) for f,t in zip(
-     u'，。！？【】（）％＃＠＆１２３４５６７８９０',
-     u',.!?[]()%#@&1234567890')}
+        u'，。！？【】（）％＃＠＆１２３４５６７８９０“”‘’：；',
+        u',.!?[]()%#@&1234567890""'':;')}
 
 class BasicSyntacticStatisticsChinese:
     def __init__(self, args: Namespace):
         if args.metrics == 'all':
             self.metric_list = [
-                'no_response_exact', 'no_response_include', 'word_count', 
-                'space_count', 'alnum_count', 'punct_count', 'numeric_count',
+                #'no_response_exact', 'no_response_include', 'space_count',
+                'word_count', 'alnum_count', #'punct_count', 'numeric_count',
             ]
         else:
             self.metric_list = args.metrics.split(',')
@@ -72,16 +72,16 @@ class BasicSyntacticStatisticsChinese:
             df_output['no_response_include'] = df_input.transform(lambda x: self.is_no_response(x, is_exact_match=False))
             
         if 'word_count' in self.metric_list:
-            df_output['word_count'] = df_input.transform(lambda x: BasicSyntacticStatisticsChinese.get_length(x, is_word_counts=True))
+            df_output['word_count'] = df_input.transform(lambda x: BasicSyntacticStatisticsChinese.get_length(x, is_word_counts=False))
               
-        if 'upper_count' in self.metric_list:
-            df_output['upper_count'] = df_input.transform(BasicSyntacticStatisticsChinese.get_upper_count)
+        #if 'upper_count' in self.metric_list:
+        #    df_output['upper_count'] = df_input.transform(BasicSyntacticStatisticsChinese.get_upper_count)
             
-        if 'lower_count' in self.metric_list:
-            df_output['lower_count'] = df_input.transform(BasicSyntacticStatisticsChinese.get_lower_count)
+        #if 'lower_count' in self.metric_list:
+        #    df_output['lower_count'] = df_input.transform(BasicSyntacticStatisticsChinese.get_lower_count)
             
-        if 'space_count' in self.metric_list:
-            df_output['space_count'] = df_input.transform(BasicSyntacticStatisticsChinese.get_space_count)
+        #if 'space_count' in self.metric_list:
+        #    df_output['space_count'] = df_input.transform(BasicSyntacticStatisticsChinese.get_space_count)
             
         if 'numeric_count' in self.metric_list:
             df_output['numeric_count'] = df_input.transform(BasicSyntacticStatisticsChinese.get_numeric_count)

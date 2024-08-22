@@ -14,9 +14,10 @@ class EmbeddingSimilarity(object):
         elif torch.cuda.is_available():
             device = 'cuda'
         self.device = device
-        self.embedder = SentenceTransformer(model_name, device=self.device)
+        self.embedder = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
 
     def get_embeddings(self, texts: List[str], batch_size: int = 32) -> torch.Tensor:
+        texts = [text if len(text) > 0 else "none" for text in texts]
         return self.embedder.encode(texts, batch_size=batch_size, show_progress_bar=True, normalize_embeddings=True, convert_to_tensor=True)
 
     def average_cosine_similarity(self, embeddings_1: torch.Tensor, embeddings_2: torch.Tensor) -> float:

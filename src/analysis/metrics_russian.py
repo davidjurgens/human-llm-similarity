@@ -11,6 +11,9 @@ from numpy import log
 import re
 import lmppl
 from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
+from syntactic_metrics_russian import BasicSyntacticStatisticsRussian
+from embedding_similarity import EmbeddingSimilarity
+from capitalization_punctuation_similarity import punctuation
 
 def enforce_reproducibility(seed=1000):
     # Sets seed manually for both CPU and CUDA
@@ -33,7 +36,7 @@ def load_hf_model(model_name, use_pipeline=True):
         cache_dir = os.environ['HF_MODEL_CACHE']
     if use_pipeline:
         pipe = pipeline("text-classification", model=model_name, model_kwargs={"cache_dir": cache_dir},
-                        device_map='mps', max_length=512, truncation=True, return_all_scores=True)
+                        device_map='cuda', max_length=512, truncation=True, return_all_scores=True)
     else:
         model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir=cache_dir).to("mps")
         tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
@@ -71,17 +74,17 @@ def run_hf_model(data, model_name, column_name, use_pipeline=True):
 def sentiment(human, llm):
     def convert_to_scalar(data):
         score_map = {
-            'negative': 0,
-            'neutral': 0.5,
-            'positive': 1,
+            'NEGATIVE': 0,
+            'NEUTRAL': 0.5,
+            'POSITIVE': 1,
         }
         out_data = []
         for d in data:
             out_data.append(sum([score_map[s['label']]*s['score'] for s in d]))
         return out_data
 
-    human_sentiment = convert_to_scalar(run_hf_model(human, "blanchefort/rubert-base-cased-sentiment", 'sentiment', use_pipeline=False))
-    llm_sentiment = convert_to_scalar(run_hf_model(llm, "blanchefort/rubert-base-cased-sentiment", 'sentiment', use_pipeline=False))
+    human_sentiment = convert_to_scalar(run_hf_model(human, "blanchefort/rubert-base-cased-sentiment", 'sentiment'))
+    llm_sentiment = convert_to_scalar(run_hf_model(llm, "blanchefort/rubert-base-cased-sentiment", 'sentiment'))
 
     return human_sentiment, llm_sentiment, np.array(llm_sentiment) - np.array(human_sentiment)
 
@@ -113,13 +116,17 @@ def perplexity(human, llm=None):
     # Now all of the prompts
     return human_perplexity, llm_perplexity, np.array(llm_perplexity) - np.array(human_perplexity)
 
+def is_no_response(col, no_response_indicator = '[no response]'): 
+    cond = (col == no_response_indicator) | (col.apply(len) == 0)
+    return (cond).apply(lambda x: 1 if x else 0)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_path", type=str, help="Name of the file with the WildChat data",
                         required=False)
     parser.add_argument("--output_path", type=str, help="Name of the file to save the generated text",
                         required=False)
-    parser.add_argument("--metrics", type=str, default='perplexity', help="Comma separated list of the metrics you want to run, or 'all' to run all")
+    parser.add_argument("--metrics", type=str, default='all', help="Comma separated list of the metrics you want to run, or 'all' to run all")
     parser.add_argument("--seed", type=int, help="Random seed",
                         default=1000)
 
@@ -131,7 +138,7 @@ if __name__ == '__main__':
     output_path = args.output_path
     metrics = args.metrics.split(",")
 
-    input_path = "data/llama-3.1-8B-smaller.jsonl"
+#     input_path = "data/llama-3.1-8B-smaller.jsonl"
 
     # to get each dataframe
     data = pd.read_json(input_path, orient='records', lines=True)
@@ -142,25 +149,112 @@ if __name__ == '__main__':
         data = pd.melt(data, id_vars=ids, value_vars=vals, var_name='prompt', value_name='llm_turn_3')
         data = data[data.llm_turn_3 != '[INVALID_DO_NOT_USE]']
 
+    # compare whether the llm and human produces a response at the same time
+    if 'all' in metrics or 'end' in metrics:
+        print("Metric: end")
+        human_end = is_no_response(data['human_turn_3']) 
+        llm_end = is_no_response(data['llm_turn_3'])
+        data.insert(len(data.columns), "human_end", human_end)
+        data.insert(len(data.columns), "llm_end", llm_end)
+        data.insert(len(data.columns), "metric_end", (human_end == llm_end).astype(int))
+        data.to_json(re.sub('.json','_end.json',output_path), orient='records', lines=True)
+
+    #subset to cases where llm and human produce a response for the remaining metrics
+    # produce a score comparing human vs. llm text
+    data = data[(is_no_response(data['human_turn_3']) == 0) &
+                (is_no_response(data['llm_turn_3']) == 0)]
+    
+    if 'all' in metrics or 'lexical' in metrics:
+        print("Metric: lexical")
+        args.no_response_indicators = '[no response]'
+        args.metrics = 'word_count,char_count,alnum_count'
+        bss = BasicSyntacticStatisticsRussian(args)
+
+        human = bss.get_counts(data['human_turn_3'])
+        llm = bss.get_counts(data['llm_turn_3'])
+        # comparison num words
+        words = log(llm['word_count']) - log(human['word_count'])
+        data.insert(len(data.columns), "human_turn_3_log_word_count", log(human['word_count']))
+        data.insert(len(data.columns), "llm_turn_3_log_word_count", log(llm['word_count']))
+        data.insert(len(data.columns), "metric_log_word_count", words)
+        # alpha_num ratio
+        data.insert(len(data.columns), "human_turn_3_alnum_ratio", human['alnum_count'] / human['char_count'])
+        data.insert(len(data.columns), "llm_turn_3_alnum_ratio", llm['alnum_count'] / llm['char_count'])
+
+        # Individual metrics
+        human = bss.get_counts(data['human_turn_1'])
+        llm = bss.get_counts(data['ai_turn_2'])
+        # comparison num words
+        data.insert(len(data.columns), "human_turn_1_log_word_count", log(human['word_count']))
+        data.insert(len(data.columns), "ai_turn_2_log_word_count", log(llm['word_count']))
+        # alpha_num ratio
+        data.insert(len(data.columns), "human_turn_1_alnum_ratio", human['alnum_count'] / human['char_count'])
+        data.insert(len(data.columns), "ai_turn_2_alnum_ratio", llm['alnum_count'] / llm['char_count'])
+
+    
+    if 'all' in metrics or 'punctuation' in metrics:
+        print("Metric: punctuation")
+        hum_pun, llm_pun, pun = punctuation(data, 'human_turn_3', 'llm_turn_3')
+        data.insert(len(data.columns), "human_turn_3_punctuation", hum_pun)
+        data.insert(len(data.columns), "llm_turn_3_punctuation", llm_pun)
+        data.insert(len(data.columns), "metric_punctuation", pun)
+
+        # Individual metrics
+        hum_pun, llm_pun, pun = punctuation(data, 'human_turn_1', 'ai_turn_2')
+        data.insert(len(data.columns), "human_turn_1_punctuation", hum_pun)
+        data.insert(len(data.columns), "ai_turn_2_punctuation", llm_pun)
+
     if 'all' in metrics or 'sentiment' in metrics:
         print("Metric: sentiment")
         human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_sentiment", human_sent)
-        data.insert(len(data.columns), "llm_sentiment", llm_sent)
+        data.insert(len(data.columns), "human_turn_3_sentiment", human_sent)
+        data.insert(len(data.columns), "llm_turn_3_sentiment", llm_sent)
         data.insert(len(data.columns), "metric_sentiment", sentiment_data)
+
+        # Individual metrics
+        human_sent, llm_sent, sentiment_data = sentiment(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_sentiment", human_sent)
+        data.insert(len(data.columns), "ai_turn_2_sentiment", llm_sent)
 
     if 'all' in metrics or 'toxicity' in metrics:
         print("Metric: toxicity")
         human_toxic, llm_toxic, toxicity_data = toxicity(data['human_turn_3'], data['llm_turn_3'])
-        data.insert(len(data.columns), "human_toxicity", human_toxic)
-        data.insert(len(data.columns), "llm_toxicity", llm_toxic)
+        data.insert(len(data.columns), "human_turn_3_toxicity", human_toxic)
+        data.insert(len(data.columns), "llm_turn_3_toxicity", llm_toxic)
         data.insert(len(data.columns), "metric_toxicity", toxicity_data)
+
+        # Individual metrics
+        human_toxic, llm_toxic, toxicity_data = toxicity(data['human_turn_1'], data['ai_turn_2'])
+        data.insert(len(data.columns), "human_turn_1_toxicity", human_toxic)
+        data.insert(len(data.columns), "ai_turn_2_toxicity", llm_toxic)
 
     if 'all' in metrics or 'perplexity' in metrics:
         print("Metric: perplexity")
         human_perplexity, llm_perplexity, perplexity = perplexity(list(data['human_turn_3']), list(data['llm_turn_3']))
-        data.insert(len(data.columns), "human_perplexity", human_perplexity)
-        data.insert(len(data.columns), "llm_perplexity", llm_perplexity)
+        data.insert(len(data.columns), "human_turn_3_perplexity", human_perplexity)
+        data.insert(len(data.columns), "llm_turn_3_perplexity", llm_perplexity)
         data.insert(len(data.columns), "metric_perplexity", perplexity)
 
-    a = 1
+        # Individual metrics
+        human_perplexity, llm_perplexity, perplexity_data = perplexity(list(data['human_turn_1']), list(data['ai_turn_2']))
+        data.insert(len(data.columns), "human_turn_1_perplexity", human_perplexity)
+        data.insert(len(data.columns), "ai_turn_2_perplexity", llm_perplexity)
+    
+
+    if 'all' in metrics or 'sbert' in metrics:
+        print("Metric: sbert")
+        embeddings = EmbeddingSimilarity(model_name="Alibaba-NLP/gte-multilingual-base")
+        embeddings_1 = embeddings.get_embeddings(list(data['human_turn_3']), batch_size=4).cpu()
+        embeddings_2 = embeddings.get_embeddings(list(data['llm_turn_3']), batch_size=4).cpu()
+        similarity = embeddings.cosine_similarity(embeddings_1, embeddings_2)
+        data.insert(len(data.columns), "human_turn_3_sbert_embedding", embeddings_1.tolist())
+        data.insert(len(data.columns), "llm_turn_3_sbert_embedding", embeddings_2.tolist())
+        data.insert(len(data.columns), "metric_sbert", similarity)
+
+        # Individual metrics
+        embeddings_3 = embeddings.get_embeddings(list(data['human_turn_1']), batch_size=4).cpu()
+        embeddings_4 = embeddings.get_embeddings(list(data['ai_turn_2']), batch_size=4).cpu()
+        data.insert(len(data.columns), "human_turn_1_sbert_embedding", embeddings_3.tolist())
+        data.insert(len(data.columns), "ai_turn_2_sbert_embedding", embeddings_4.tolist())
+
+    data.to_json(output_path, orient='records', lines=True)
