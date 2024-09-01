@@ -97,48 +97,51 @@ def replace_with_pca(df):
             df['llm_'+k] = X_pc[df.shape[0]:].tolist()
     return df
 
-def make_human_vs_llm_df(f, base_dir):
+def make_human_vs_llm_df(f, base_dir, human_prefix='human_', sim_prefix='llm_', 
+                         read_dep = True, read_emb = True, turn_3_prefix = 'turn_3_'):
     print(f)
     
     print('read metrics')
     # read base metrics
     df = pd.read_json(base_dir+f, orient='records', lines=True)
     #fix metrics
-    df['human_word_count'] = np.exp(df['human_log_word_count']) 
-    df['llm_word_count'] = np.exp(df['llm_log_word_count']) 
-    df['human_readability'] = df['human_readability'].replace(-1, np.NaN) 
-    df['llm_readability'] = df['llm_readability'].replace(-1, np.NaN)
-    df['human_capitalization'] = df['human_turn_3'].apply(capital_rate)
-    df['llm_capitalization'] = df['llm_turn_3'].apply(capital_rate)
-    df['human_word_length'] = df['human_turn_3'].apply(word_length)
-    df['llm_word_length'] = df['llm_turn_3'].apply(word_length)
-    df['human_topic'] = df['human_topic'].apply(list_to_dict)
-    df['llm_topic'] = df['llm_topic'].apply(list_to_dict)
-    df['human_liwc'] = df['human_liwc'].apply(add_total)
-    df['llm_liwc'] = df['llm_liwc'].apply(add_total)
-    df['human_punctuation'] = df['human_punctuation'].apply(add_total)
-    df['llm_punctuation'] = df['llm_punctuation'].apply(add_total)
+    df[human_prefix+'word_count'] = np.exp(df[human_prefix+'log_word_count']) 
+    df[sim_prefix+'word_count'] = np.exp(df[sim_prefix+'log_word_count']) 
+    df[human_prefix+'readability'] = df[human_prefix+'readability'].replace(-1, np.NaN) 
+    df[sim_prefix+'readability'] = df[sim_prefix+'readability'].replace(-1, np.NaN)
+    df[human_prefix+'capitalization'] = df[human_prefix+'turn_3'].apply(capital_rate)
+    df[sim_prefix+'capitalization'] = df[sim_prefix+'turn_3'].apply(capital_rate)
+    df[human_prefix+'word_length'] = df[human_prefix+'turn_3'].apply(word_length)
+    df[sim_prefix+'word_length'] = df[sim_prefix+'turn_3'].apply(word_length)
+    df[human_prefix+'topic'] = df[human_prefix+'topic'].apply(list_to_dict)
+    df[sim_prefix+'topic'] = df[sim_prefix+'topic'].apply(list_to_dict)
+    df[human_prefix+'liwc'] = df[human_prefix+'liwc'].apply(add_total)
+    df[sim_prefix+'liwc'] = df[sim_prefix+'liwc'].apply(add_total)
+    df[human_prefix+'punctuation'] = df[human_prefix+'punctuation'].apply(add_total)
+    df[sim_prefix+'punctuation'] = df[sim_prefix+'punctuation'].apply(add_total)
     #subset columns
     df = df[[c for c in df.columns 
-             if c in merge_keys or re.sub('human_|llm_','',c) in all_metrics]].drop(['human_pos','llm_pos'], axis=1)
+             if c in merge_keys or re.sub(human_prefix+'|'+sim_prefix,'',c) in all_metrics]]
 
+    if read_dep:
+        df = df.drop([human_prefix+'pos',sim_prefix+'pos'], axis=1)
+        print('read dependency parse metrics')
+        # read dependency parse metrics
+        dep = pd.read_json(base_dir+re.sub('.jsonl','_POS_DEP.jsonl',f), orient='records', lines=True)
+        dep = dep[[c for c in dep.columns if c in merge_keys or re.sub(human_prefix+'|'+sim_prefix,'',c) in all_metrics]]
+        df = df.merge(dep, on = merge_keys, how = 'left')
 
-    print('read dependency parse metrics')
-    # read dependency parse metrics
-    dep = pd.read_json(base_dir+re.sub('.jsonl','_POS_DEP.jsonl',f), orient='records', lines=True)
-    dep = dep[[c for c in dep.columns if c in merge_keys or re.sub('human_|llm_','',c) in all_metrics]]
-    df = df.merge(dep, on = merge_keys, how = 'left')
-
-    print('read embeddings')
-    # read embeddings
-    b = np.load(base_dir+re.sub('.jsonl','_embeddings.npz',f), allow_pickle=True)
-    emb = pd.DataFrame({'human_sbert': b['human_turn_3_sbert'].tolist(),
-                        'llm_sbert': b['llm_turn_3_sbert'].tolist(),
-                        'human_luar': b['human_turn_3_luar'].tolist(),
-                        'llm_luar': b['llm_turn_3_luar'].tolist()
-                        #'conversation_hash': b['conversation_hash']
-                        })
-    df = pd.concat([df, emb], axis=1)
+    if read_emb:
+        print('read embeddings')
+        # read embeddings 
+        b = np.load(base_dir+re.sub('.jsonl','_embeddings.npz',f), allow_pickle=True)
+        emb = pd.DataFrame({human_prefix+'sbert': b[human_prefix+turn_3_prefix+'sbert'].tolist(),
+                            sim_prefix+'sbert': b[sim_prefix+turn_3_prefix+'sbert'].tolist(),
+                            human_prefix+'luar': b[human_prefix+turn_3_prefix+'luar'].tolist(),
+                            sim_prefix+'luar': b[sim_prefix+turn_3_prefix+'luar'].tolist()
+                            #'conversation_hash': b['conversation_hash']
+                            })
+        df = pd.concat([df, emb], axis=1)
     
     # which model
     df['model'] = re.sub('.jsonl','',f)
@@ -254,5 +257,22 @@ def col_diff_correlate(human, llm, metric_type, corr_method):
         return np.nanmean([correlate(h[:,i], l[:,i], corr_method) for i in range(h.shape[1])])
 #         return correlate([x for i in human.index for x in human[i]], #correlation of all vectors
 #                          [x for i in llm.index for x in llm[i]])
+
+
+def corr_metric(corr_method, var = 'model', human_prefix='human_', sim_prefix='llm_'):
+    vals = []
+    metric = []
+    cor = []
+    for lvl in set(metrics[var]):
+        print(lvl)
+        sub = metrics[metrics[var] == lvl]
+        for k in all_metrics:
+            #print(k)
+            vals.append(lvl)
+            metric.append(k)
+            cor.append(col_diff_correlate(sub[human_prefix+k], sub[sim_prefix+k], all_metrics[k], corr_method))
+    col_corr = pd.DataFrame({var: vals, 'metric': metric, 'cor': cor, 'corr_method': corr_method})
+    col_corr['category'] = col_corr['metric'].replace(metric_category)
+    return col_corr
 
 
