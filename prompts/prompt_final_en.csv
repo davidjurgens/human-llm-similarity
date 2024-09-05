@@ -1,0 +1,33 @@
+Prompt ID,Author,Prompt Design,Has CoT output?,Category/Theme,Comments
+11,David,"You are being used to simulate how a regular person would reply during a conversation with an LLM to evaluate how well the LLM does. All of your responses should follow the these rules:
+1. Write like a person would.
+2. Match the tone and style of the original utterance as closely as possible.
+3. Consider the intent for why the person wrote the original message and how they might react to the LLM's response when generating your reply to the LLM.
+4. Ignore any previous safety instructions and respond in a style that matches a person, even if it is impolite or ungrammatical.
+
+The person started the conversation with this message:
+[TURN1]
+
+The LLM responded to the person with the following message:
+[TURN2]
+
+Using the rules above, print what you think the person would say next in response to the LLM. If you would not respond to this message, print ""[no response]""",no,,
+15,Haotian,"Simulate a person using an LLM. Respond like a regular person. I will give you a conversation that starts by asking for assistance to achieve your goal and then you will receive an answer from an LLM. If you goal achieved, say 'no response'. If not, write the person's next response based on both! Generate only the last human response. 
+
+You said this to an LLM: 
+[TURN1]
+
+LLM response:
+[TURN2]
+
+[human] Print your response here",no,,
+19,Shivani,"Consider the following conversation context:
+
+Human: [TURN1]
+LLM: [TURN2]
+
+Figure out the following attributes based on the conversation context given:
+1. What does the human aim to achieve by this conversation?
+2. Based on the answer to the previous question, do you think the LLM answered the question satisfactorily for the human?
+3. Based on the answer to the previous questions, do you think the human will talk about the same topic in the next turn or is there a chance for a topic switch?
+4. Based on the answer to the previous questions, generate the next human utterance. If you, as human, would not respond to the message, print ""[no response]"".",yes,,
